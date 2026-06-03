@@ -12,6 +12,7 @@ let mediaServerPort = 0;
 const MEDIA_EXTS = new Set([
   'mp4','mov','mkv','avi','webm',
   'mp3','wav','aac','flac','ogg','m4a','wma',
+  'png','jpg','jpeg','gif','webp','bmp','svg', // F6：圖片投影 cue
 ]);
 
 const MIME = {
@@ -19,6 +20,8 @@ const MIME = {
   avi:'video/x-msvideo', webm:'video/webm',
   mp3:'audio/mpeg', wav:'audio/wav', aac:'audio/aac',
   flac:'audio/flac', ogg:'audio/ogg', m4a:'audio/mp4', wma:'audio/x-ms-wma',
+  png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+  webp:'image/webp', bmp:'image/bmp', svg:'image/svg+xml',
 };
 
 function startMediaServer() {
@@ -142,9 +145,10 @@ ipcMain.handle('dialog:openFile', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '選取音訊或影片檔案',
     filters: [
-      { name: '所有媒體', extensions: ['mp3','wav','aac','flac','ogg','m4a','mp4','mkv','mov','avi','webm','wma'] },
+      { name: '所有媒體', extensions: ['mp3','wav','aac','flac','ogg','m4a','mp4','mkv','mov','avi','webm','wma','png','jpg','jpeg','gif','webp','bmp','svg'] },
       { name: '音訊',     extensions: ['mp3','wav','aac','flac','ogg','m4a','wma'] },
       { name: '影片',     extensions: ['mp4','mkv','mov','avi','webm'] },
+      { name: '圖片',     extensions: ['png','jpg','jpeg','gif','webp','bmp','svg'] },
     ],
     properties: ['openFile'],
   });
@@ -152,12 +156,13 @@ ipcMain.handle('dialog:openFile', async () => {
   const filePath = result.filePaths[0];
   const ext      = path.extname(filePath).slice(1).toLowerCase();
   const videoExt = ['mp4','mkv','mov','avi','webm'];
+  const imageExt = ['png','jpg','jpeg','gif','webp','bmp','svg'];
   return {
     filePath,
     fileName:     path.basename(filePath),
     fileSize:     fs.statSync(filePath).size,
     ext,
-    detectedType: videoExt.includes(ext) ? 'video' : 'audio',
+    detectedType: videoExt.includes(ext) ? 'video' : imageExt.includes(ext) ? 'image' : 'audio',
   };
 });
 
