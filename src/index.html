@@ -1,0 +1,2067 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Show Controller</title>
+<!-- 字體改用系統內建字型堆疊，移除 Google Fonts 外部依賴（演出現場可能無網路） -->
+<style>
+:root {
+  --bg:#0a0c0f; --bg2:#111418; --bg3:#181c22; --bg4:#1e232b; --bg5:#242930;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --text:#e8eaf0; --text2:#8b909e; --text3:#4e5464;
+  --accent:#00d4a1; --accent2:#00a87e; --accent-glow:rgba(0,212,161,0.15);
+  --red:#ff5f5f; --red-dim:rgba(255,95,95,0.1);
+  --amber:#f0a020; --amber-dim:rgba(240,160,32,0.1);
+  --blue:#4a9eff; --blue-dim:rgba(74,158,255,0.1);
+  --purple:#a78bfa; --purple-dim:rgba(167,139,250,0.1);
+  --r:8px; --r-lg:12px;
+  --mono:'Times New Roman',ui-monospace,'Cascadia Mono','Consolas',monospace;
+  --sans:'Times New Roman',ui-serif,Georgia,'Microsoft JhengHei','PMingLiU',serif;
+  --base-size:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:var(--base-size);overflow:hidden;user-select:none}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);pointer-events:none;z-index:9998}
+
+/* ── TITLEBAR ── */
+#titlebar{height:44px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;-webkit-app-region:drag;flex-shrink:0}
+.tb-logo{width:24px;height:24px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 12px var(--accent-glow)}
+.tb-logo svg{width:12px;height:12px;fill:#000}
+.tb-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);margin-left:10px;letter-spacing:0.06em}
+.tb-proj{font-family:var(--mono);font-size:10px;color:var(--accent);border:1px solid rgba(0,212,161,0.3);border-radius:4px;padding:1px 7px;margin-left:10px;background:var(--accent-glow)}
+.tb-spacer{flex:1}
+
+/* PANIC BUTTON */
+#panicBtn{-webkit-app-region:no-drag;height:30px;padding:0 16px;border-radius:6px;border:2px solid var(--red);background:var(--red-dim);color:var(--red);font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.1em;transition:all 0.1s;flex-shrink:0;margin-right:12px}
+#panicBtn:hover{background:var(--red);color:#fff;box-shadow:0 0 20px rgba(255,95,95,0.5)}
+#panicBtn:active{transform:scale(0.96)}
+
+/* PERFORMANCE MODE TOGGLE */
+.perf-toggle{-webkit-app-region:no-drag;display:flex;align-items:center;gap:7px;margin-right:14px;cursor:pointer}
+.perf-label{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;white-space:nowrap}
+.toggle-sw{width:34px;height:18px;background:var(--bg4);border-radius:9px;border:1px solid var(--border2);position:relative;transition:all 0.2s;flex-shrink:0}
+.toggle-sw::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--text3);transition:all 0.2s}
+.perf-toggle.active .toggle-sw{background:rgba(240,160,32,0.2);border-color:var(--amber)}
+.perf-toggle.active .toggle-sw::after{left:18px;background:var(--amber)}
+.perf-toggle.active .perf-label{color:var(--amber)}
+
+.tb-master{-webkit-app-region:no-drag;display:flex;align-items:center;gap:7px;margin-right:16px}
+.tb-master-label{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em}
+.tb-master input{-webkit-appearance:none;width:80px;height:3px;background:var(--bg4);border-radius:2px;outline:none;cursor:pointer}
+.tb-master input::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer}
+.tb-master-val{font-family:var(--mono);font-size:10px;color:var(--accent);min-width:30px}
+.tb-save{-webkit-app-region:no-drag;display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text3);margin-right:10px}
+.save-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);transition:all 0.3s}
+.save-dot.dirty{background:var(--amber)}
+.win-controls{-webkit-app-region:no-drag;display:flex;gap:0}
+.wc-btn{width:40px;height:44px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.12s}
+.wc-btn:hover{background:rgba(255,255,255,0.06)}
+.wc-btn.close:hover{background:#c42b1c}
+.wc-btn svg{width:10px;height:10px;fill:var(--text3)}
+.wc-btn.close:hover svg{fill:white}
+
+/* ── MAIN LAYOUT ── */
+#layout{display:grid;grid-template-columns:280px 1fr 260px;height:calc(100vh - 44px);overflow:hidden}
+
+/* ── LEFT: CUE LIST ── */
+#sidebar{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sl-header{padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.sl-title{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em}
+.sl-add{font-family:var(--mono);font-size:11px;padding:4px 10px;border:1px solid var(--border2);border-radius:var(--r);background:transparent;color:var(--text2);cursor:pointer;transition:all 0.15s}
+.sl-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+#cue-list{flex:1;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:2px}
+#cue-list::-webkit-scrollbar{width:3px}
+#cue-list::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+
+.cue-item{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:var(--r);border:1px solid transparent;cursor:pointer;transition:all 0.12s;position:relative}
+.cue-item::before{content:'';position:absolute;left:0;top:3px;bottom:3px;width:2px;background:transparent;border-radius:1px;transition:background 0.15s}
+.cue-item:hover{background:var(--bg3);border-color:var(--border)}
+.cue-item.active{background:rgba(0,212,161,0.05);border-color:rgba(0,212,161,0.2)}
+.cue-item.active::before{background:var(--accent)}
+.cue-item.playing{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{background:rgba(0,212,161,0.05)}50%{background:rgba(0,212,161,0.1)}}
+.cue-num{font-family:var(--mono);font-size:10px;color:var(--text3);width:16px;text-align:right;flex-shrink:0}
+.cue-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cue-icon.audio{background:var(--blue-dim)}
+.cue-icon.video{background:var(--red-dim)}
+.cue-icon svg{width:13px;height:13px}
+.cue-icon.audio svg{fill:var(--blue)}
+.cue-icon.video svg{fill:var(--red)}
+.cue-body{flex:1;min-width:0}
+.cue-name{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cue-sub{display:flex;gap:4px;margin-top:2px;align-items:center}
+.ctag{font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px}
+.ctag.audio{background:var(--blue-dim);color:var(--blue)}
+.ctag.video{background:var(--red-dim);color:var(--red)}
+.ctag.fade{background:var(--amber-dim);color:var(--amber)}
+.ctag.auto{background:var(--accent-glow);color:var(--accent)}
+.ctag.missing{background:var(--red-dim);color:var(--red)}
+.cue-vol-b{font-family:var(--mono);font-size:11px;color:var(--text3);flex-shrink:0}
+.cue-item.active .cue-vol-b{color:var(--accent)}
+.cue-del{background:transparent;border:none;color:var(--text3);cursor:pointer;padding:2px 5px;border-radius:4px;font-size:14px;flex-shrink:0;transition:color 0.12s}
+.cue-del:hover{color:var(--red)}
+
+/* ── CENTER: PLAYER ── */
+#player{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+
+/* VIDEO PREVIEW AREA */
+#video-area{position:relative;background:#000;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#video-area.has-video{border-bottom:1px solid var(--border)}
+#mainVideo{width:100%;height:100%;object-fit:contain;display:none}
+#mainVideo.active{display:block}
+.video-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;opacity:0.2}
+.video-placeholder svg{width:40px;height:40px;fill:var(--text3)}
+.video-placeholder span{font-family:var(--mono);font-size:10px;color:var(--text3)}
+#popoutBtn{position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:white;font-family:var(--mono);font-size:10px;padding:4px 8px;border-radius:5px;cursor:pointer;transition:all 0.15s;display:none}
+#popoutBtn:hover{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.4)}
+#video-area:hover #popoutBtn{display:block}
+
+/* NOW PLAYING HEADER */
+.np-header{padding:12px 18px 10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--bg2) 0%,var(--bg) 100%);flex-shrink:0}
+.np-eye{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.14em;margin-bottom:4px}
+.np-title{font-size:16px;font-weight:500;color:var(--text);line-height:1.3;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-meta{font-family:var(--mono);font-size:10px;color:var(--text2);margin-bottom:3px}
+.np-path{font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:5px;overflow:hidden}
+.np-path .path-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.np-path .path-ok{color:var(--accent)}
+.np-path .path-none{color:var(--text3);font-style:italic}
+.show-in-folder{background:transparent;border:none;cursor:pointer;color:var(--text3);font-family:var(--mono);font-size:9px;flex-shrink:0;padding:2px 4px;border-radius:3px}
+.show-in-folder:hover{color:var(--accent);background:var(--accent-glow)}
+canvas#wv{width:100%;height:28px;display:block;opacity:0.4;margin-bottom:8px}
+.progress-wrapper{cursor:pointer;margin-bottom:4px}
+.progress-track{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:2px;width:0%;transition:width 0.25s linear}
+.time-row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3)}
+
+/* TRANSPORT */
+.transport{padding:10px 18px;display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--border);flex-shrink:0}
+.t-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border2);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.12s;flex-shrink:0}
+.t-btn svg{width:12px;height:12px;fill:var(--text2)}
+.t-btn:hover{border-color:var(--text2);background:var(--bg3)}
+.t-btn.play{width:40px;height:40px;background:var(--accent);border-color:var(--accent);box-shadow:0 0 16px rgba(0,212,161,0.25)}
+.t-btn.play svg{fill:#000;width:14px;height:14px}
+.t-btn.play:hover{background:var(--accent2)}
+.vol-block{flex:1;display:flex;align-items:center;gap:7px;margin-left:4px}
+.vol-block svg{width:13px;height:13px;fill:var(--text3);flex-shrink:0}
+.vol-slider{-webkit-appearance:none;flex:1;height:3px;background:var(--bg4);border-radius:2px;outline:none;cursor:pointer}
+.vol-slider::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--text);cursor:pointer;transition:background 0.12s}
+.vol-slider::-webkit-slider-thumb:hover{background:var(--accent)}
+.vol-readout{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text);min-width:34px;text-align:right}
+.vu-bar{display:flex;gap:2px;align-items:flex-end;height:22px}
+.vu-seg{width:3px;border-radius:1px}
+
+/* AUTOMATION */
+.auto-panel{padding:10px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.panel-lbl{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px}
+.auto-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px}
+.a-btn{padding:6px 8px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);cursor:pointer;display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text2);transition:all 0.12s;white-space:nowrap}
+.a-btn svg{width:10px;height:10px;fill:currentColor;flex-shrink:0}
+.a-btn:hover{border-color:var(--border2);color:var(--text)}
+.a-btn.fi:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.a-btn.fo:hover{border-color:var(--red);color:var(--red);background:var(--red-dim)}
+.a-btn.dk:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-dim)}
+.a-btn.rc:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-dim)}
+.a-btn.full{grid-column:span 3}
+.fade-cfg{display:flex;align-items:center;gap:8px}
+.fade-cfg label{font-family:var(--mono);font-size:9px;color:var(--text3);white-space:nowrap}
+.fade-cfg input{flex:1;-webkit-appearance:none;height:3px;background:var(--bg4);border-radius:2px;outline:none;cursor:pointer}
+.fade-cfg input::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--amber);cursor:pointer}
+.fade-cfg span{font-family:var(--mono);font-size:10px;color:var(--amber);min-width:30px}
+
+/* SCHEDULER */
+.sched-panel{padding:10px 18px;flex:1;overflow-y:auto;min-height:0}
+.sched-panel::-webkit-scrollbar{width:3px}
+.sched-panel::-webkit-scrollbar-thumb{background:var(--bg4)}
+.sched-row{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg3);margin-bottom:4px}
+.sched-time{font-family:var(--mono);font-size:11px;color:var(--amber);min-width:40px}
+.sched-act{font-family:var(--mono);font-size:11px;color:var(--text2);flex:1}
+.sched-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sched-dot.pending{background:var(--bg4);border:1px solid var(--border2)}
+.sched-dot.done{background:var(--accent)}
+.sched-del{background:transparent;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0 3px}
+.sched-del:hover{color:var(--red)}
+.sched-add-row{display:flex;gap:5px;margin-top:5px}
+.s-inp{background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:11px;padding:5px 8px;border-radius:var(--r);outline:none;transition:border 0.12s}
+.s-inp:focus{border-color:var(--accent)}
+.s-inp.t{width:60px}
+.s-inp.a{flex:1}
+.sched-add-btn{padding:5px 10px;border-radius:var(--r);border:1px solid var(--accent);background:var(--accent-glow);color:var(--accent);font-family:var(--mono);font-size:11px;cursor:pointer;white-space:nowrap}
+.sched-add-btn:hover{background:var(--accent);color:#000}
+
+/* ── RIGHT PANEL ── */
+#rpanel{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.rp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.rp-tab{flex:1;padding:9px 4px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.12s;text-transform:uppercase;letter-spacing:0.08em}
+.rp-tab:hover{color:var(--text2)}
+.rp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.rp-body{flex:1;overflow-y:auto;padding:11px}
+.rp-body::-webkit-scrollbar{width:3px}
+.rp-body::-webkit-scrollbar-thumb{background:var(--bg4)}
+.prop-sec{margin-bottom:12px}
+.prop-sec-title{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px}
+.prop-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);gap:8px}
+.prop-key{font-family:var(--mono);font-size:10px;color:var(--text3);flex-shrink:0}
+.prop-val{font-family:var(--mono);font-size:11px;color:var(--text);text-align:right}
+.prop-val.accent{color:var(--accent)}
+.prop-val.amber{color:var(--amber)}
+.prop-val.red{color:var(--red)}
+.prop-inp{background:var(--bg4);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:11px;padding:3px 7px;border-radius:4px;width:90px;text-align:right;outline:none}
+.prop-inp:focus{border-color:var(--accent)}
+.prop-badge{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;cursor:pointer}
+.prop-badge.on{background:var(--accent-glow);color:var(--accent)}
+.prop-badge.off{background:var(--bg4);color:var(--text3)}
+.file-drop{border:1px dashed var(--border2);border-radius:var(--r);padding:12px;text-align:center;cursor:pointer;transition:all 0.15s;margin-bottom:8px}
+.file-drop:hover,.file-drop.drag{border-color:var(--accent);background:var(--accent-glow)}
+.file-drop-icon{font-size:16px;margin-bottom:4px}
+.file-drop-txt{font-family:var(--mono);font-size:10px;color:var(--text3);line-height:1.6}
+.file-drop-txt span{color:var(--accent)}
+.file-path-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:8px}
+.fpc-label{font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:4px}
+.fpc-path{font-family:var(--mono);font-size:10px;color:var(--text2);word-break:break-all;line-height:1.5}
+.fpc-actions{display:flex;gap:5px;margin-top:6px}
+.fpc-btn{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer}
+.fpc-btn:hover{border-color:var(--accent);color:var(--accent)}
+.fpc-btn.danger:hover{border-color:var(--red);color:var(--red)}
+.file-status{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;margin-bottom:8px}
+.fs-dot{width:7px;height:7px;border-radius:50%}
+.fs-dot.ok{background:var(--accent)}
+.fs-dot.none{background:var(--text3)}
+.url-row{display:flex;gap:5px;margin-top:6px}
+.url-inp{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:10px;padding:5px 8px;border-radius:var(--r);outline:none}
+.url-inp:focus{border-color:var(--accent)}
+.url-btn{padding:5px 10px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--mono);font-size:10px;cursor:pointer}
+.url-btn:hover{border-color:var(--accent);color:var(--accent)}
+.store-card{border:1px solid var(--border);border-radius:var(--r);padding:10px;background:var(--bg3);margin-bottom:8px}
+.sc-title{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text);margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.sc-desc{font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:7px}
+.sc-status{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:6px}
+.sc-btn{width:100%;padding:6px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.12s}
+.sc-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.sc-btn.ex{border-color:var(--blue);color:var(--blue)}
+.sc-btn.ex:hover{background:var(--blue-dim)}
+.sc-row{display:flex;gap:6px}
+.sc-row .sc-btn{flex:1}
+.data-path-info{font-family:var(--mono);font-size:9px;color:var(--text3);padding:6px;background:var(--bg4);border-radius:4px;word-break:break-all;line-height:1.7}
+
+/* ── SFX PAD ── */
+#sfx-panel{padding:10px 11px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
+.sfx-title{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.sfx-title svg{width:10px;height:10px;fill:var(--purple)}
+.sfx-grid{display:flex;flex-direction:column;gap:4px}
+.sfx-btn{padding:7px 10px;border-radius:var(--r);border:1px solid var(--purple-dim);background:var(--purple-dim);cursor:pointer;display:flex;align-items:center;gap:8px;transition:all 0.12s;font-family:var(--sans)}
+.sfx-btn:hover{border-color:var(--purple);background:rgba(167,139,250,0.15)}
+.sfx-btn:active{transform:scale(0.97)}
+.sfx-ico{font-size:14px;flex-shrink:0}
+.sfx-info{flex:1;min-width:0}
+.sfx-name{font-size:11px;font-weight:500;color:var(--text);line-height:1.2}
+.sfx-sub{font-family:var(--mono);font-size:9px;color:var(--text3)}
+.sfx-vol-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.sfx-vol-label{font-family:var(--mono);font-size:8px;color:var(--text3)}
+.sfx-vol{-webkit-appearance:none;width:50px;height:2px;background:var(--bg4);border-radius:2px;outline:none;cursor:pointer}
+.sfx-vol::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--purple);cursor:pointer}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity 0.2s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:20px;width:400px;transform:translateY(10px);transition:transform 0.2s;box-shadow:0 20px 50px rgba(0,0,0,0.7)}
+.overlay.open .modal{transform:translateY(0)}
+.modal-title{font-family:var(--mono);font-size:13px;font-weight:600;margin-bottom:14px;color:var(--text)}
+.fg{margin-bottom:10px}
+.fl{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;display:block}
+.fi-inp{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 9px;border-radius:var(--r);outline:none;transition:border 0.12s}
+.fi-inp:focus{border-color:var(--accent)}
+.fg-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modal-footer{display:flex;gap:7px;margin-top:12px;justify-content:flex-end}
+.m-cancel{padding:7px 14px;border-radius:var(--r);border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--mono);font-size:11px;cursor:pointer}
+.m-ok{padding:7px 14px;border-radius:var(--r);border:1px solid var(--accent);background:var(--accent-glow);color:var(--accent);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.12s}
+.m-ok:hover{background:var(--accent);color:#000}
+
+/* TOAST */
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 14px;font-family:var(--mono);font-size:12px;color:var(--text);opacity:0;transition:all 0.22s;z-index:200;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.5);pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.ok{border-color:var(--accent);color:var(--accent)}
+#toast.warn{border-color:var(--amber);color:var(--amber)}
+#toast.err{border-color:var(--red);color:var(--red)}
+
+/* PERFORMANCE MODE */
+body.perf-mode .hide-in-perf{display:none!important}
+
+/* FEEDBACK BEEP visual indicator */
+.vol-feedback{position:absolute;right:2px;bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:0;transition:opacity 0.05s}
+.vol-feedback.flash{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div id="titlebar">
+  <div class="tb-logo"><svg viewBox="0 0 12 12"><polygon points="6,1 11,6 6,11 1,6"/></svg></div>
+  <span class="tb-title">SHOW CONTROLLER</span>
+  <span class="tb-proj" id="tb-proj-name">載入中…</span>
+  <div class="tb-spacer"></div>
+  <div class="perf-toggle" id="perfToggle" title="演出模式：隱藏編輯功能，防止誤操作">
+    <span class="perf-label">切換至演出模式 (防呆)</span>
+    <div class="toggle-sw"></div>
+  </div>
+  <button id="panicBtn" title="緊急切斷所有聲音與畫面">⚠ PANIC</button>
+  <div class="tb-master">
+    <span class="tb-master-label">MASTER</span>
+    <input type="range" id="masterVol" min="0" max="100" value="90">
+    <span class="tb-master-val" id="masterValOut">90%</span>
+  </div>
+  <div class="tb-save">
+    <div class="save-dot" id="saveDot"></div>
+    <span id="saveLabel">已儲存</span>
+  </div>
+  <div class="win-controls">
+    <button class="wc-btn" id="btnMin"><svg viewBox="0 0 10 2"><rect y="0" width="10" height="2"/></svg></button>
+    <button class="wc-btn" id="btnMax"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+    <button class="wc-btn close" id="btnClose"><svg viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5"/></svg></button>
+  </div>
+</div>
+
+<div id="layout">
+
+  <!-- CUE LIST -->
+  <div id="sidebar">
+    <div class="sl-header">
+      <span class="sl-title">CUE LIST</span>
+      <button class="sl-add hide-in-perf" id="addCueBtn">+ 新增 Cue</button>
+    </div>
+    <div id="cue-list"></div>
+  </div>
+
+  <!-- PLAYER -->
+  <div id="player">
+    <!-- VIDEO AREA -->
+    <div id="video-area" style="height:0px">
+      <video id="mainVideo" preload="auto" playsinline></video>
+      <audio id="mainAudio" preload="auto"></audio>
+      <div class="video-placeholder" id="videoPlaceholder" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M15 8v8H5V8h10m1-2H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4V7c0-.55-.45-1-1-1z"/></svg>
+        <span>影片預覽</span>
+      </div>
+      <button id="popoutBtn" title="獨立投影視窗（延伸螢幕）">⤢ 獨立投影視窗</button>
+    </div>
+
+    <!-- NOW PLAYING -->
+    <div class="np-header">
+      <div class="np-eye">NOW PLAYING</div>
+      <div class="np-title" id="npTitle">— 請選擇一個 Cue —</div>
+      <div class="np-meta" id="npMeta">等待播放</div>
+      <div class="np-path" id="npPath"><span class="path-text path-none">尚未選取檔案</span></div>
+      <canvas id="wv"></canvas>
+      <div class="progress-wrapper" id="progWrap">
+        <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+      </div>
+      <div class="time-row"><span id="tCur">0:00</span><span id="tTot">0:00</span></div>
+    </div>
+
+    <div class="transport">
+      <button class="t-btn" id="btnPrev"><svg viewBox="0 0 14 14"><path d="M3 2h1.5v10H3zm1.5 5L11 2v10z"/></svg></button>
+      <button class="t-btn play" id="btnPlay"><svg viewBox="0 0 14 14" id="playIco"><path d="M4 2.5l7 4.5-7 4.5z"/></svg></button>
+      <button class="t-btn" id="btnNext"><svg viewBox="0 0 14 14"><path d="M11 2h-1.5v10H11zM9.5 7L3 2v10z"/></svg></button>
+      <button class="t-btn" id="btnStop"><svg viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8"/></svg></button>
+      <div class="vol-block" style="position:relative">
+        <svg viewBox="0 0 14 14"><path d="M2 5h3l3-3v10L5 9H2zM9 4a4 4 0 0 1 0 6"/></svg>
+        <input type="range" class="vol-slider" id="cueVol" min="0" max="100" value="70">
+        <span class="vol-readout" id="cueVolOut">70%</span>
+        <div class="vol-feedback" id="volFeedback"></div>
+      </div>
+      <div class="vu-bar" id="vuBar"></div>
+    </div>
+
+    <div class="auto-panel">
+      <div class="panel-lbl">AUTOMATION</div>
+      <div class="auto-grid">
+        <button class="a-btn fi" id="btnFI"><svg viewBox="0 0 12 12"><path d="M1 11L6 1L11 11" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Fade In</button>
+        <button class="a-btn fo" id="btnFO"><svg viewBox="0 0 12 12"><path d="M1 1L6 11L11 1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>Fade Out</button>
+        <button class="a-btn dk" id="btnDuck"><svg viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="6" x2="8" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>Duck</button>
+        <button class="a-btn rc" id="btnRecall"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 4v2l1.5 1.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Recall</button>
+        <button class="a-btn full" id="btnCueNext"><svg viewBox="0 0 12 12"><path d="M2 6h8M7 3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>切換至下一 Cue</button>
+      </div>
+      <div class="fade-cfg">
+        <label>淡出時長</label>
+        <input type="range" id="fadeDur" min="500" max="15000" step="500" value="5000">
+        <span id="fadeDurOut">5.0s</span>
+      </div>
+    </div>
+
+    <!-- TIMELINE -->
+    <div class="timeline-panel">
+      <div class="tl-header">
+        <span class="tl-title">Timeline 時間軸</span>
+        <div class="tl-dur-row">
+          <span class="tl-dur-lbl">總長</span>
+          <input class="tl-dur-inp" id="tlDurInp" value="240" title="總時長（秒）">
+          <span class="tl-dur-lbl">秒</span>
+        </div>
+      </div>
+      <div class="tl-wrap" id="tlWrap">
+        <div class="tl-ruler" id="tlRuler"></div>
+        <div class="tl-playhead" id="tlPlayhead" style="left:0%"></div>
+        <!-- fi/fo blocks rendered by JS -->
+        <div class="tl-empty" id="tlEmpty">選擇 Cue 後即可拖拉淡入 / 淡出方塊</div>
+      </div>
+    </div>
+
+    <div class="sched-panel">
+      <div class="panel-lbl">時間點排程</div>
+      <div id="schedList"></div>
+      <div class="sched-add-row hide-in-perf">
+        <input class="s-inp t" id="schedT" placeholder="0:30">
+        <input class="s-inp a" id="schedA" placeholder="動作描述（如：淡出音樂）">
+        <button class="sched-add-btn" id="schedAdd">+ 新增</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="rpanel">
+    <!-- FONT SIZE CONTROL -->
+    <div class="font-size-ctrl">
+      <span class="fs-label">字體大小</span>
+      <div class="fs-btns" id="fsSizebtns">
+        <button class="fs-btn" data-size="12" style="font-size:10px">A</button>
+        <button class="fs-btn active" data-size="14" style="font-size:12px">A</button>
+        <button class="fs-btn" data-size="16" style="font-size:14px">A</button>
+        <button class="fs-btn" data-size="18" style="font-size:16px">A</button>
+      </div>
+      <span class="fs-cur" id="fsCurLabel">14px</span>
+    </div>
+    <div class="rp-tabs">
+      <div class="rp-tab active" data-tab="props">屬性</div>
+      <div class="rp-tab" data-tab="file">檔案</div>
+      <div class="rp-tab" data-tab="store">儲存</div>
+    </div>
+    <div class="rp-body" id="tab-props">
+      <div class="prop-sec">
+        <div class="prop-sec-title">Cue 設定</div>
+        <div class="prop-row"><span class="prop-key">名稱</span><input class="prop-inp hide-in-perf" id="pName" style="width:120px"><span class="prop-val" id="pNameShow" style="display:none">—</span></div>
+        <div class="prop-row"><span class="prop-key">類型</span><span class="prop-val" id="pType">—</span></div>
+        <div class="prop-row"><span class="prop-key">預設音量</span><span class="prop-val accent" id="pVol">—</span></div>
+        <div class="prop-row hide-in-perf"><span class="prop-key">淡出 (ms)</span><input class="prop-inp" id="pFO" type="number"></div>
+        <div class="prop-row hide-in-perf"><span class="prop-key">淡入 (ms)</span><input class="prop-inp" id="pFI" type="number"></div>
+        <div class="prop-row"><span class="prop-key">Auto Next</span><span class="prop-badge off" id="pAutoNext">OFF</span></div>
+      </div>
+      <div class="prop-sec">
+        <div class="prop-sec-title">專案</div>
+        <div class="prop-row hide-in-perf"><span class="prop-key">專案名</span><input class="prop-inp" id="projName" style="width:120px"></div>
+        <div class="prop-row"><span class="prop-key">Cue 總數</span><span class="prop-val" id="pTotal">0</span></div>
+        <div class="prop-row"><span class="prop-key">儲存位置</span><span class="prop-val amber">本機 JSON</span></div>
+      </div>
+    </div>
+    <div class="rp-body" id="tab-file" style="display:none">
+      <div class="panel-lbl" style="margin-bottom:7px">選取本機檔案</div>
+      <div class="file-drop hide-in-perf" id="dropArea">
+        <div class="file-drop-icon">📂</div>
+        <div class="file-drop-txt">點擊選取，或拖放<br>音訊 / 影片至此</div>
+      </div>
+      <div id="fileStatusRow" class="file-status">
+        <div class="fs-dot none" id="fsDot"></div>
+        <span id="fsLabel">尚未選取</span>
+      </div>
+      <div id="filePathCard" class="file-path-card" style="display:none">
+        <div class="fpc-label">檔案路徑（已記憶）</div>
+        <div class="fpc-path" id="fpcPath">—</div>
+        <div class="fpc-actions hide-in-perf">
+          <button class="fpc-btn" id="showInFolderBtn">在檔案總管中顯示</button>
+          <button class="fpc-btn danger" id="clearFileBtn">移除</button>
+        </div>
+      </div>
+      <div class="hide-in-perf">
+        <div class="panel-lbl" style="margin-bottom:5px;margin-top:10px">或輸入 URL</div>
+        <div class="url-row">
+          <input class="url-inp" id="urlInp" placeholder="https://...">
+          <button class="url-btn" id="urlApply">套用</button>
+        </div>
+      </div>
+    </div>
+    <div class="rp-body" id="tab-store" style="display:none">
+      <div class="store-card">
+        <div class="sc-title"><div class="save-dot" style="background:var(--accent)"></div>本機 JSON 儲存</div>
+        <div class="sc-desc">所有專案設定均自動儲存至本機，重新整理後完整還原。</div>
+        <div class="sc-status"><div class="save-dot" id="storeStatusDot" style="background:var(--accent)"></div><span id="storeStatusTxt">正常運作</span></div>
+        <div class="data-path-info" id="dataPathInfo">（瀏覽器模式）儲存至 LocalStorage。</div>
+      </div>
+      <div class="store-card">
+        <div class="sc-title">匯出 / 匯入</div>
+        <div class="sc-desc">將整個專案匯出為 JSON 備份檔，可分享至其他電腦還原。</div>
+        <div class="sc-row">
+          <button class="sc-btn ex" id="btnExport">匯出 JSON</button>
+          <button class="sc-btn" id="btnImport">匯入 JSON</button>
+        </div>
+      </div>
+      <div class="store-card" style="border-color:rgba(255,95,95,0.2)">
+        <div class="sc-title">重置資料</div>
+        <div class="sc-desc">清除所有專案設定，回到預設狀態。</div>
+        <button class="sc-btn" style="border-color:var(--red);color:var(--red)" id="btnReset">清除所有資料</button>
+      </div>
+    </div>
+
+    <!-- SFX PAD -->
+    <div id="sfx-panel">
+      <div class="sfx-title">
+        <svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4 4l4 2-4 2z" fill="currentColor"/></svg>
+        快捷音效盤 (SFX)
+      </div>
+      <div class="sfx-grid">
+        <button class="sfx-btn" data-sfx="cheer">
+          <span class="sfx-ico">🎉</span>
+          <div class="sfx-info"><div class="sfx-name">歡呼掌聲</div><div class="sfx-sub">獨立音軌 · 疊加播放</div></div>
+          <div class="sfx-vol-wrap"><span class="sfx-vol-label">音量</span><input class="sfx-vol" type="range" min="0" max="100" value="80" data-sfx-vol="cheer" onclick="event.stopPropagation()"></div>
+        </button>
+        <button class="sfx-btn" data-sfx="correct">
+          <span class="sfx-ico">🔔</span>
+          <div class="sfx-info"><div class="sfx-name">叮咚（答對）</div><div class="sfx-sub">獨立音軌 · 疊加播放</div></div>
+          <div class="sfx-vol-wrap"><span class="sfx-vol-label">音量</span><input class="sfx-vol" type="range" min="0" max="100" value="80" data-sfx-vol="correct" onclick="event.stopPropagation()"></div>
+        </button>
+        <button class="sfx-btn" data-sfx="wrong">
+          <span class="sfx-ico">📯</span>
+          <div class="sfx-info"><div class="sfx-name">叭叭（答錯）</div><div class="sfx-sub">獨立音軌 · 疊加播放</div></div>
+          <div class="sfx-vol-wrap"><span class="sfx-vol-label">音量</span><input class="sfx-vol" type="range" min="0" max="100" value="80" data-sfx-vol="wrong" onclick="event.stopPropagation()"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD CUE MODAL -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-title">新增 Cue</div>
+    <div class="fg"><label class="fl">名稱</label><input class="fi-inp" id="mName" placeholder="例：背景音樂-長官進場"></div>
+    <div class="fg-row">
+      <div class="fg"><label class="fl">類型</label>
+        <select class="fi-inp" id="mType"><option value="audio">audio</option><option value="video">video</option></select>
+      </div>
+      <div class="fg"><label class="fl">預設音量 (0-100)</label><input class="fi-inp" id="mVol" type="number" min="0" max="100" value="70"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label class="fl">淡出時長 (ms)</label><input class="fi-inp" id="mFO" type="number" value="5000"></div>
+      <div class="fg"><label class="fl">淡入時長 (ms)</label><input class="fi-inp" id="mFI" type="number" value="3000"></div>
+    </div>
+    <div class="fg"><label class="fl">Auto Next</label>
+      <select class="fi-inp" id="mAuto"><option value="false">關閉</option><option value="true">開啟</option></select>
+    </div>
+    <div class="modal-footer">
+      <button class="m-cancel" id="mCancel">取消</button>
+      <button class="m-ok" id="mOk">新增</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// ELECTRON DETECTION
+// ══════════════════════════════════════════
+const isElectron = !!window.electronAPI;
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+function cid() {
+  if (window.crypto && crypto.randomUUID) return 'cue_' + crypto.randomUUID();
+  return 'cue_' + Math.random().toString(36).slice(2, 11);
+}
+
+// ── HTML escape：所有寫入 innerHTML 的使用者資料都必須經過此函式（防 XSS）──
+function esc(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ── 清理某個 cue 殘留的 blob: URL（避免記憶體洩漏）──
+const mediaBlobCache = new Map(); // cueId -> blob URL
+function clearMediaCache(cueId) {
+  const old = mediaBlobCache.get(cueId);
+  if (old && typeof old === 'string' && old.startsWith('blob:')) {
+    try { URL.revokeObjectURL(old); } catch (e) {}
+  }
+  mediaBlobCache.delete(cueId);
+}
+
+// ── 驗證使用者輸入的 URL 只允許 http/https（防 javascript:/file:/data: 注入）──
+function isValidMediaUrl(u) {
+  try { return ['http:', 'https:'].includes(new URL(u).protocol); }
+  catch { return false; }
+}
+
+// ── 驗證/修復匯入的專案結構，避免損壞 JSON 造成 crash ──
+function sanitizeProject(data) {
+  if (!data || typeof data !== 'object') return null;
+  const p = {
+    project_id:   typeof data.project_id === 'string' ? data.project_id : 'imported_' + Date.now(),
+    project_name: typeof data.project_name === 'string' ? data.project_name : '未命名專案',
+    settings:     (data.settings && typeof data.settings === 'object') ? data.settings : {},
+    cues:         Array.isArray(data.cues) ? data.cues : [],
+  };
+  if (typeof p.settings.master_volume !== 'number' || !isFinite(p.settings.master_volume)) {
+    p.settings.master_volume = 0.9;
+  }
+  p.settings.master_volume = Math.max(0, Math.min(1, p.settings.master_volume));
+  p.cues = p.cues.filter(c => c && typeof c === 'object').map(c => ({
+    id:                typeof c.id === 'string' ? c.id : cid(),
+    type:              c.type === 'video' ? 'video' : 'audio',
+    name:              typeof c.name === 'string' ? c.name : '未命名 Cue',
+    filePath:          typeof c.filePath === 'string' ? c.filePath : '',
+    url:               typeof c.url === 'string' ? c.url : '',
+    fileName:          typeof c.fileName === 'string' ? c.fileName : '',
+    default_volume:    (typeof c.default_volume === 'number' && isFinite(c.default_volume))
+                         ? Math.max(0, Math.min(1, c.default_volume)) : 0.7,
+    fade_out_duration: (typeof c.fade_out_duration === 'number' && c.fade_out_duration >= 0) ? c.fade_out_duration : 5000,
+    fade_in_duration:  (typeof c.fade_in_duration === 'number' && c.fade_in_duration >= 0) ? c.fade_in_duration : 3000,
+    auto_next:         !!c.auto_next,
+    schedules:         Array.isArray(c.schedules)
+                         ? c.schedules.filter(s => s && typeof s.time === 'string' && typeof s.action === 'string')
+                                      .map(s => ({ time: s.time, action: s.action, done: !!s.done }))
+                         : [],
+  }));
+  return p;
+}
+
+function defaultProject() {
+  return {
+    project_id: 'camp_2026_001',
+    project_name: '逐光啟程夏令營',
+    settings: { master_volume: 0.9 },
+    cues: [
+      { id: cid(), type: 'audio', name: '背景音樂-長官進場', filePath: '', url: '', fileName: '', default_volume: 0.65, fade_out_duration: 5000, fade_in_duration: 3000, auto_next: false, schedules: [] },
+      { id: cid(), type: 'video', name: '開幕影片-主題宣告', filePath: '', url: '', fileName: '', default_volume: 0.80, fade_out_duration: 3000, fade_in_duration: 2000, auto_next: true, schedules: [] },
+      { id: cid(), type: 'audio', name: '敬拜音樂-第一首',   filePath: '', url: '', fileName: '', default_volume: 0.75, fade_out_duration: 4000, fade_in_duration: 3000, auto_next: false, schedules: [] },
+    ]
+  };
+}
+
+let project = defaultProject();
+let activeCueIdx = -1;
+let isPlaying = false;
+let progTimer = null;
+let simStart = 0, simDur = 240;
+let fadeId = null;
+let perfMode = false;
+let loadToken = 0; // 防止快速切換 Cue 時多個 async loadAndPlay 並行播放
+
+// ── Audio Engine ──
+let actx = null;
+let audioSrc = null, audioBuf = null;
+let audioStartTime = 0, pauseOffset = 0;
+let vuRaf = null;
+
+// ── Video / Audio elements ──
+const videoEl = document.getElementById('mainVideo');
+const audioEl = document.getElementById('mainAudio'); // 用於 Electron 的 <audio> 直接播放模式
+const videoArea = document.getElementById('video-area');
+let videoObjectUrl = null;
+let popoutWin = null;
+
+// ── SFX Engine (independent tracks) ──
+let sfxCtx = null;
+const sfxGains = {};
+
+// actx 僅用於音量回饋嗶聲（feedback beep）；主播放走 <audio>/<video> 元素，
+// 不經過 Web Audio graph，因此不再建立未使用的 gainNode / analyser。
+function ensureCtx() {
+  if (!actx) {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (actx.state === 'suspended') actx.resume();
+}
+
+function ensureSfxCtx() {
+  if (!sfxCtx) sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (sfxCtx.state === 'suspended') sfxCtx.resume();
+}
+
+// 設定當前播放元素的音量（套用 master）。這是音量的單一真實來源。
+// v01：cue 音量 0..1。實際播放元素為 <audio> 或 <video>。
+function setGainNow(v01) {
+  const master = project.settings.master_volume || 1;
+  const vol = Math.max(0, Math.min(1, v01 * master));
+  if (activeCueIdx < 0) return;
+  const type = project.cues[activeCueIdx].type;
+  if (type === 'video') videoEl.volume = vol;
+  else                  audioEl.volume = vol;
+}
+
+// ══════════════════════════════════════════
+// VIDEO AREA MANAGEMENT
+// ══════════════════════════════════════════
+function showVideoArea(show) {
+  if (show) {
+    videoArea.style.height = '180px';
+    videoArea.style.borderBottom = '1px solid var(--border)';
+    document.getElementById('videoPlaceholder').style.display = 'flex';
+  } else {
+    videoArea.style.height = '0px';
+    videoArea.style.borderBottom = 'none';
+    document.getElementById('videoPlaceholder').style.display = 'none';
+  }
+}
+
+function stopVideo() {
+  videoEl.pause();
+  videoEl.src = '';
+  videoEl.classList.remove('active');
+  document.getElementById('videoPlaceholder').style.display = videoArea.style.height !== '0px' ? 'flex' : 'none';
+  if (videoObjectUrl) { URL.revokeObjectURL(videoObjectUrl); videoObjectUrl = null; }
+  // Also update popout if open
+  if (popoutWin && !popoutWin.closed) {
+    try { popoutWin.document.getElementById('pv').pause(); popoutWin.document.getElementById('pv').src = ''; } catch(e){}
+  }
+}
+
+function loadVideoSrc(src, blob) {
+  stopVideo();
+  if (blob) {
+    videoObjectUrl = URL.createObjectURL(blob);
+    videoEl.src = videoObjectUrl;
+  } else {
+    videoEl.src = src;
+  }
+  videoEl.classList.add('active');
+  document.getElementById('videoPlaceholder').style.display = 'none';
+  // Sync to popout
+  if (popoutWin && !popoutWin.closed) {
+    try {
+      const pv = popoutWin.document.getElementById('pv');
+      pv.src = videoEl.src;
+    } catch(e){}
+  }
+}
+
+// ══════════════════════════════════════════
+// MAIN PLAYBACK
+// ══════════════════════════════════════════
+// ── 取得可播放的 URL ──
+// Electron: 透過 IPC 取得 localhost HTTP URL（main process 起的媒體 server）
+// 瀏覽器: 直接用 blob URL 或 http URL
+async function getPlayableUrl(cue) {
+  if (isElectron && cue.filePath && window.electronAPI.getMediaUrl) {
+    return await window.electronAPI.getMediaUrl(cue.filePath);
+  }
+  return cue.url || null;
+}
+
+async function loadAndPlay(cue, offset = 0) {
+  const token   = ++loadToken; // 每次載入取得唯一 token；若被後續呼叫取代則中止
+  const isVideo = cue.type === 'video';
+  const hasSrc  = !!(cue.filePath || cue.url);
+
+  if (isVideo) {
+    showVideoArea(true);
+    if (!hasSrc) {
+      simDur = 240; simStart = Date.now() - offset * 1000;
+      startProgressSim(); startVUSimulated(); return;
+    }
+    try {
+      const playUrl = await getPlayableUrl(cue);
+      if (token !== loadToken) return; // 已被新的載入取代
+      if (!playUrl) throw new Error('無法取得媒體 URL');
+      const targetVol = Math.min(1, (cue.default_volume || 0.8) * (project.settings.master_volume || 1));
+
+      videoEl.src     = playUrl;
+      videoEl.volume  = targetVol;
+      videoEl.classList.add('active');
+      document.getElementById('videoPlaceholder').style.display = 'none';
+
+      await new Promise((resolve, reject) => {
+        const onMeta = () => { cleanup(); resolve(); };
+        const onErr  = (e) => { cleanup(); reject(e); };
+        const cleanup = () => {
+          videoEl.removeEventListener('loadedmetadata', onMeta);
+          videoEl.removeEventListener('error', onErr);
+        };
+        videoEl.addEventListener('loadedmetadata', onMeta);
+        videoEl.addEventListener('error', onErr);
+      });
+
+      if (token !== loadToken) { videoEl.pause(); return; }
+      if (offset > 0) videoEl.currentTime = offset;
+
+      if (popoutWin && !popoutWin.closed) {
+        try {
+          const pv = popoutWin.document.getElementById('pv');
+          pv.src = playUrl;
+          if (offset > 0) pv.currentTime = offset;
+          pv.volume = targetVol;
+          pv.play().catch(() => {});
+        } catch(e) {}
+      }
+
+      if (token !== loadToken) { videoEl.pause(); return; }
+      await videoEl.play();
+      if (token !== loadToken) { videoEl.pause(); return; }
+      startProgressVideo();
+      startVUSimulated();
+      videoEl.onended = () => { if (isPlaying) handleAutoNext(); };
+    } catch(err) {
+      console.warn('影片載入失敗:', err);
+      videoEl.classList.remove('active');
+      document.getElementById('videoPlaceholder').style.display = 'flex';
+      simDur = 240; simStart = Date.now() - offset * 1000;
+      startProgressSim(); startVUSimulated();
+      toast('影片載入失敗：' + (err.message || err), 'err');
+    }
+
+  } else {
+    // ── AUDIO MODE ──
+    // 在 Electron 中直接用 <audio> 元素播放，完全避免 decodeAudioData crash
+    // 在瀏覽器中若有 blob URL 也走 <audio>，保持一致
+    showVideoArea(false);
+    stopVideo();
+
+    // 停止舊的 Web Audio（如果有）
+    if (audioSrc) { try { audioSrc.stop(); } catch(e) {} audioSrc = null; }
+    audioBuf = null;
+
+    // 停止舊的 <audio>
+    audioEl.pause();
+    audioEl.src = '';
+
+    if (!hasSrc) {
+      simDur = 240; simStart = Date.now() - offset * 1000;
+      startProgressSim(); startVUSimulated(); return;
+    }
+    try {
+      const playUrl = await getPlayableUrl(cue);
+      if (token !== loadToken) return; // 已被新的載入取代
+      if (!playUrl) throw new Error('無法取得媒體 URL');
+
+      const targetVol = Math.min(1, (cue.default_volume || 0.8) * (project.settings.master_volume || 1));
+      audioEl.src    = playUrl;
+      audioEl.volume = targetVol;
+      audioEl.currentTime = 0;
+
+      // 等 metadata 載入
+      await new Promise((resolve, reject) => {
+        const onMeta = () => { cleanup(); resolve(); };
+        const onErr  = (e) => { cleanup(); reject(e); };
+        const cleanup = () => {
+          audioEl.removeEventListener('loadedmetadata', onMeta);
+          audioEl.removeEventListener('error', onErr);
+        };
+        audioEl.addEventListener('loadedmetadata', onMeta);
+        audioEl.addEventListener('error', onErr);
+      });
+
+      if (token !== loadToken) { audioEl.pause(); return; }
+      if (offset > 0) audioEl.currentTime = offset;
+      await audioEl.play();
+      if (token !== loadToken) { audioEl.pause(); return; }
+
+      audioEl.onended = () => { if (isPlaying) handleAutoNext(); };
+      startProgressAudioEl();  // 用 <audio>.currentTime 更新進度條
+      startVUSimulated();       // 模擬 VU meter（<audio> 不需要 Web Audio）
+    } catch(err) {
+      console.warn('音訊載入失敗:', err);
+      audioEl.src = '';
+      simDur = 240; simStart = Date.now() - offset * 1000;
+      startProgressSim(); startVUSimulated();
+      toast('音訊載入失敗：' + (err.message || err), 'err');
+    }
+  }
+}
+
+function getCurTime() {
+  if (activeCueIdx < 0) return (Date.now() - simStart) / 1000;
+  const cue = project.cues[activeCueIdx];
+  if (cue.type === 'video') return videoEl.currentTime || 0;
+  // audio: 優先用 <audio> 元素（Electron 模式），其次 Web Audio，最後 sim
+  if (audioEl.src && !audioEl.paused) return audioEl.currentTime || 0;
+  if (audioBuf && actx) return Math.max(0, actx.currentTime - audioStartTime);
+  return (Date.now() - simStart) / 1000;
+}
+
+function getTotTime() {
+  if (activeCueIdx < 0) return simDur;
+  const cue = project.cues[activeCueIdx];
+  if (cue.type === 'video') return isFinite(videoEl.duration) ? videoEl.duration : simDur;
+  // audio
+  if (audioEl.src && isFinite(audioEl.duration)) return audioEl.duration;
+  if (audioBuf) return audioBuf.duration;
+  return simDur;
+}
+
+// <audio> 元素版進度條（不依賴 Web Audio / AudioContext）
+function startProgressAudioEl() {
+  clearInterval(progTimer);
+  progTimer = setInterval(() => {
+    if (!isPlaying) return;
+    const cur = audioEl.currentTime || 0;
+    const tot = isFinite(audioEl.duration) ? audioEl.duration : 0;
+    updateProgress(cur, tot);
+  }, 200);
+}
+
+function startProgressVideo() {
+  clearInterval(progTimer);
+  progTimer = setInterval(() => {
+    if (!isPlaying) return;
+    const cur = videoEl.currentTime || 0;
+    const tot = isFinite(videoEl.duration) ? videoEl.duration : 0;
+    updateProgress(cur, tot);
+    // Sync popout
+    if (popoutWin && !popoutWin.closed) {
+      try { 
+        const pv = popoutWin.document.getElementById('pv');
+        if (Math.abs(pv.currentTime - cur) > 0.5) pv.currentTime = cur;
+      } catch(e){}
+    }
+  }, 250);
+}
+
+function startProgressSim() {
+  clearInterval(progTimer);
+  progTimer = setInterval(() => {
+    if (!isPlaying) return;
+    const el = (Date.now() - simStart) / 1000;
+    updateProgress(el, simDur);
+    if (el >= simDur) { clearInterval(progTimer); handleAutoNext(); }
+  }, 200);
+}
+
+function updateProgress(cur, tot) {
+  const pct = tot > 0 ? Math.min((cur / tot) * 100, 100) : 0;
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('tCur').textContent = fmt(cur);
+  document.getElementById('tTot').textContent = fmt(tot);
+  updateTlPlayhead(); // 同步時間軸播放頭
+  checkSchedules(cur); // 檢查時間點排程觸發
+}
+
+function fmt(s) { s = Math.max(0, Math.floor(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+
+function handleAutoNext() {
+  isPlaying = false; updatePlayIco();
+  document.querySelectorAll('.cue-item').forEach(el => el.classList.remove('playing'));
+  const cue = project.cues[activeCueIdx];
+  if (cue && cue.auto_next && activeCueIdx < project.cues.length - 1) {
+    setTimeout(() => selectCue(activeCueIdx + 1), 400);
+  }
+}
+
+// ── VU Meter（模擬電平；<audio>/<video> 透過元素直接播放，未接 Web Audio analyser）──
+// 停止播放時取消 requestAnimationFrame，避免閒置時持續更新 DOM 浪費 CPU。
+function buildVuBars() {
+  const vb = document.getElementById('vuBar');
+  const N = 12; vb.innerHTML = '';
+  for (let i = 0; i < N; i++) { const d = document.createElement('div'); d.className = 'vu-seg'; vb.appendChild(d); }
+  return vb.querySelectorAll('.vu-seg');
+}
+
+function resetVuBars(bars) {
+  bars.forEach(b => { b.style.height = '3px'; b.style.background = 'var(--bg4)'; });
+}
+
+function startVUSimulated() {
+  cancelAnimationFrame(vuRaf);
+  const bars = buildVuBars();
+  function draw() {
+    if (!isPlaying) { resetVuBars(bars); vuRaf = null; return; } // 靜止時停止 RAF
+    vuRaf = requestAnimationFrame(draw);
+    const lv = 50 + Math.sin(Date.now() / 150) * 30 + Math.sin(Date.now() / 90) * 15;
+    bars.forEach((b, i) => {
+      const h = Math.max(3, Math.round((lv / 100) * 20 * (i < 8 ? 1 : i < 10 ? 0.65 : 0.35)));
+      b.style.height = h + 'px';
+      b.style.background = i < 8 ? 'var(--accent)' : i < 10 ? 'var(--amber)' : 'var(--red)';
+    });
+  }
+  draw();
+}
+
+// ── Gain Fade ──
+function smoothGain(target, durationMs, cb) {
+  clearFade();
+  const start = parseFloat(document.getElementById('cueVol').value) / 100;
+  const steps = 60, interval = durationMs / steps;
+  const delta = (target - start) / steps;
+  let cur = start, step = 0;
+  fadeId = setInterval(() => {
+    cur = Math.max(0.001, Math.min(1, cur + delta));
+    const pct = Math.round(cur * 100);
+    document.getElementById('cueVol').value = pct;
+    document.getElementById('cueVolOut').textContent = pct + '%';
+    setGainNow(cur); // 統一由 setGainNow 套用至實際播放元素（含 master）
+    if (++step >= steps) { clearInterval(fadeId); fadeId = null; if (cb) cb(); }
+  }, interval);
+}
+function clearFade() { if (fadeId) { clearInterval(fadeId); fadeId = null; } }
+
+// ── Volume feedback beep (for audio preview without playing) ──
+let beepTimeout = null;
+function playFeedbackBeep(volume) {
+  ensureCtx();
+  if (beepTimeout) { clearTimeout(beepTimeout); }
+  beepTimeout = setTimeout(() => {
+    try {
+      const osc = actx.createOscillator();
+      const g = actx.createGain();
+      osc.connect(g); g.connect(actx.destination);
+      const freq = 220 + volume * 660; // pitch scales with volume
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      g.gain.setValueAtTime(0.04, actx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.15);
+      osc.start(actx.currentTime);
+      osc.stop(actx.currentTime + 0.15);
+      // Flash indicator
+      const fb = document.getElementById('volFeedback');
+      fb.classList.add('flash');
+      setTimeout(() => fb.classList.remove('flash'), 80);
+    } catch(e) {}
+  }, 30);
+}
+
+// ══════════════════════════════════════════
+// SFX SYNTHESIZER (built-in sounds)
+// ══════════════════════════════════════════
+function generateSfxBuffer(type) {
+  ensureSfxCtx();
+  const sampleRate = sfxCtx.sampleRate;
+  let duration, buffer, data;
+
+  if (type === 'cheer') {
+    // Crowd cheer: noise burst with envelope
+    duration = 2.5;
+    buffer = sfxCtx.createBuffer(2, Math.floor(sampleRate * duration), sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      data = buffer.getChannelData(ch);
+      for (let i = 0; i < data.length; i++) {
+        const t = i / sampleRate;
+        const env = t < 0.1 ? t / 0.1 : t < 1.5 ? 1 : (duration - t) / (duration - 1.5);
+        const noise = (Math.random() * 2 - 1);
+        // Add some pitched components for crowd feel
+        const crowd = Math.sin(2 * Math.PI * 250 * t) * 0.3 + Math.sin(2 * Math.PI * 380 * t) * 0.2 + Math.sin(2 * Math.PI * 500 * t) * 0.15;
+        data[i] = (noise * 0.5 + crowd * 0.5) * env * 0.7;
+      }
+    }
+  } else if (type === 'correct') {
+    // Ding-dong: two tones
+    duration = 0.8;
+    buffer = sfxCtx.createBuffer(1, Math.floor(sampleRate * duration), sampleRate);
+    data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const t = i / sampleRate;
+      const env = Math.exp(-t * 5);
+      const tone1 = Math.sin(2 * Math.PI * 880 * t);
+      const tone2 = t > 0.3 ? Math.sin(2 * Math.PI * 1109 * (t - 0.3)) * Math.exp(-(t-0.3) * 5) : 0;
+      data[i] = (tone1 * env + tone2) * 0.4;
+    }
+  } else if (type === 'wrong') {
+    // Buzzer: descending tones
+    duration = 0.6;
+    buffer = sfxCtx.createBuffer(1, Math.floor(sampleRate * duration), sampleRate);
+    data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const t = i / sampleRate;
+      const env = Math.exp(-t * 3);
+      const freq = 400 - t * 200;
+      const tone = Math.sin(2 * Math.PI * freq * t);
+      const square = tone > 0 ? 0.3 : -0.3; // rough square for buzzy feel
+      data[i] = (tone * 0.3 + square * 0.4) * env;
+    }
+  }
+  return buffer;
+}
+
+function playSfx(type) {
+  ensureSfxCtx();
+  const volSlider = document.querySelector(`[data-sfx-vol="${type}"]`);
+  const vol = volSlider ? parseInt(volSlider.value) / 100 : 0.8;
+  const master = project.settings.master_volume || 1;
+
+  const buf = generateSfxBuffer(type);
+  if (!buf) return;
+  const src = sfxCtx.createBufferSource();
+  const g = sfxCtx.createGain();
+  src.buffer = buf;
+  src.connect(g); g.connect(sfxCtx.destination);
+  g.gain.value = vol * master;
+  src.start();
+  toast(`▶ SFX: ${type === 'cheer' ? '歡呼掌聲' : type === 'correct' ? '叮咚（答對）' : '叭叭（答錯）'}`, 'ok');
+}
+
+// ══════════════════════════════════════════
+// POPOUT VIDEO WINDOW
+// ══════════════════════════════════════════
+document.getElementById('popoutBtn').onclick = () => {
+  if (popoutWin && !popoutWin.closed) { popoutWin.focus(); return; }
+  const w = screen.width, h = screen.height;
+  popoutWin = window.open('', 'popout_player', `width=1280,height=720,left=${w/2},top=0,toolbar=no,menubar=no,scrollbars=no,resizable=yes`);
+  if (!popoutWin) { toast('無法開啟彈出視窗，請允許彈出視窗', 'err'); return; }
+  popoutWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{width:100%;height:100%;background:#000;overflow:hidden}
+    video{width:100%;height:100%;object-fit:contain}
+  
+/* ── FONT SIZE SELECTOR ── */
+.font-size-ctrl{display:flex;align-items:center;gap:6px;padding:8px 11px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
+.fs-label{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+.fs-btns{display:flex;gap:3px}
+.fs-btn{width:26px;height:26px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-family:'Times New Roman',serif;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center}
+.fs-btn:hover{border-color:var(--accent);color:var(--accent)}
+.fs-btn.active{border-color:var(--accent);background:var(--accent-glow);color:var(--accent)}
+.fs-cur{font-family:var(--mono);font-size:10px;color:var(--accent);min-width:28px;text-align:center}
+
+/* ── TIMELINE ── */
+.timeline-panel{padding:10px 18px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg2)}
+.tl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tl-title{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em}
+.tl-dur-row{display:flex;align-items:center;gap:6px}
+.tl-dur-lbl{font-family:var(--mono);font-size:9px;color:var(--text3)}
+.tl-dur-inp{width:52px;background:var(--bg3);border:1px solid var(--border);color:var(--accent);font-family:var(--mono);font-size:10px;padding:2px 5px;border-radius:4px;text-align:center;outline:none}
+.tl-dur-inp:focus{border-color:var(--accent)}
+.tl-wrap{position:relative;height:72px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:crosshair;user-select:none}
+/* time ruler */
+.tl-ruler{position:absolute;top:0;left:0;right:0;height:18px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.tl-tick{position:absolute;top:0;height:18px;display:flex;flex-direction:column;align-items:center;pointer-events:none}
+.tl-tick-line{width:1px;height:8px;background:var(--border2);margin-top:2px}
+.tl-tick-label{font-family:var(--mono);font-size:8px;color:var(--text3);margin-top:1px;white-space:nowrap}
+/* playhead */
+.tl-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);pointer-events:none;z-index:5;transition:left .1s linear}
+.tl-playhead::before{content:'▼';position:absolute;top:0;left:-5px;font-size:8px;color:var(--accent);line-height:18px}
+/* event blocks */
+.tl-block{position:absolute;top:22px;height:36px;border-radius:5px;cursor:grab;display:flex;align-items:center;justify-content:space-between;padding:0 6px;z-index:4;transition:box-shadow .1s;min-width:32px;box-sizing:border-box}
+.tl-block:active{cursor:grabbing;box-shadow:0 0 0 2px var(--accent)}
+.tl-block.fi{background:rgba(0,212,161,.18);border:1px solid var(--accent)}
+.tl-block.fo{background:rgba(255,95,95,.18);border:1px solid var(--red)}
+.tl-block-label{font-family:var(--mono);font-size:9px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.tl-block.fi .tl-block-label{color:var(--accent)}
+.tl-block.fo .tl-block-label{color:var(--red)}
+/* resize handle */
+.tl-resize{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:ew-resize;background:transparent;border-radius:0 5px 5px 0}
+.tl-resize:hover{background:rgba(255,255,255,.12)}
+/* no-cue hint */
+.tl-empty{position:absolute;inset:18px 0 0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:var(--text3);pointer-events:none}
+</style></head><body><video id="pv" autoplay playsinline></video>
+  <script>
+    document.addEventListener('keydown', e => { if(e.key==='Escape') document.exitFullscreen&&document.exitFullscreen(); });
+    document.addEventListener('dblclick', () => { if(!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen&&document.exitFullscreen(); });
+  <\/script></body></html>`);
+  popoutWin.document.close();
+  // Sync current video
+  setTimeout(() => {
+    if (!popoutWin || popoutWin.closed) return;
+    try {
+      const pv = popoutWin.document.getElementById('pv');
+      if (videoEl.src) {
+        pv.src = videoEl.src;
+        pv.currentTime = videoEl.currentTime;
+        pv.volume = videoEl.volume;
+        if (!videoEl.paused) pv.play().catch(()=>{});
+      }
+    } catch(e) {}
+  }, 300);
+  toast('獨立視窗已開啟，可拖曳至投影機並雙擊全螢幕', 'ok');
+};
+
+// ══════════════════════════════════════════
+// PANIC
+// ══════════════════════════════════════════
+document.getElementById('panicBtn').onclick = () => {
+  isPlaying = false; updatePlayIco();
+  loadToken++; // 作廢任何進行中的 loadAndPlay
+  clearInterval(progTimer); clearFade();
+  cancelAnimationFrame(vuRaf); vuRaf = null;
+  // Kill audio
+  if (audioSrc) { try { audioSrc.stop(); } catch(e){} audioSrc = null; }
+  audioBuf = null;
+  audioEl.pause(); audioEl.src = '';
+  // Kill video
+  videoEl.pause(); videoEl.src = '';
+  videoEl.classList.remove('active');
+  // Kill popout
+  if (popoutWin && !popoutWin.closed) {
+    try { popoutWin.document.getElementById('pv').pause(); popoutWin.document.getElementById('pv').src = ''; } catch(e){}
+  }
+  // Kill sfx
+  if (sfxCtx) { sfxCtx.suspend(); sfxCtx = null; }
+  // Reset UI
+  document.getElementById('progFill').style.width = '0%';
+  document.getElementById('tCur').textContent = '0:00';
+  document.querySelectorAll('.cue-item').forEach(el => el.classList.remove('playing'));
+  pauseOffset = 0;
+  toast('⚠ PANIC — 所有聲音與畫面已切斷', 'err');
+};
+
+// ══════════════════════════════════════════
+// PERSISTENCE
+// ══════════════════════════════════════════
+async function loadProject() {
+  if (isElectron) {
+    const data = await window.electronAPI.loadProject();
+    const clean = sanitizeProject(data);
+    if (clean) project = clean;
+    document.getElementById('dataPathInfo').textContent = '資料路徑：%APPDATA%\\show-controller\\project.json\n自動儲存，重開後完整還原。';
+  } else {
+    const raw = localStorage.getItem('show_controller_v2');
+    if (raw) { try { const clean = sanitizeProject(JSON.parse(raw)); if (clean) project = clean; } catch(e){} }
+    document.getElementById('dataPathInfo').textContent = '（瀏覽器模式）儲存至 LocalStorage。';
+  }
+}
+
+let saveDebounce = null;
+function saveProject() {
+  clearTimeout(saveDebounce);
+  saveDebounce = setTimeout(async () => {
+    if (isElectron) { await window.electronAPI.saveProject(project); }
+    else { localStorage.setItem('show_controller_v2', JSON.stringify(project)); }
+    flashSaved();
+  }, 500);
+}
+
+function markDirty() {
+  document.getElementById('saveDot').classList.add('dirty');
+  document.getElementById('saveLabel').textContent = '儲存中…';
+}
+function flashSaved() {
+  document.getElementById('saveDot').classList.remove('dirty');
+  document.getElementById('saveLabel').textContent = '已儲存';
+  document.getElementById('storeStatusTxt').textContent = '正常 · ' + new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// ══════════════════════════════════════════
+// SELECT CUE
+// ══════════════════════════════════════════
+function selectCue(idx) {
+  if (idx < 0 || idx >= project.cues.length) return;
+  activeCueIdx = idx;
+  const cue = project.cues[idx];
+  document.querySelectorAll('.cue-item').forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+    el.classList.remove('playing');
+  });
+
+  document.getElementById('npTitle').textContent = cue.name;
+  document.getElementById('npMeta').textContent = `${cue.type} · 淡出 ${(cue.fade_out_duration/1000).toFixed(1)}s · cue ${idx+1}/${project.cues.length}`;
+
+  updateFilePathDisplay(cue);
+
+  const vol = Math.round(cue.default_volume * 100);
+  document.getElementById('cueVol').value = vol;
+  document.getElementById('cueVolOut').textContent = vol + '%';
+  document.getElementById('fadeDur').value = cue.fade_out_duration;
+  document.getElementById('fadeDurOut').textContent = (cue.fade_out_duration/1000).toFixed(1) + 's';
+
+  // 切換 Cue 時重置排程觸發狀態，使其在本次播放可重新觸發
+  (cue.schedules || []).forEach(s => { s.done = false; });
+
+  updatePropsPanel(cue);
+  updateFileTab(cue);
+  renderScheduler();
+  drawWaveform();
+  clearFade();
+
+  // Stop previous
+  if (audioSrc) { try { audioSrc.stop(); } catch(e){} audioSrc = null; audioBuf = null; }
+  videoEl.pause();
+  pauseOffset = 0;
+  isPlaying = true;
+  updatePlayIco();
+  document.querySelector(`.cue-item:nth-child(${idx + 1})`).classList.add('playing');
+  loadAndPlay(cue, 0);
+  toast(`▶ ${cue.name}`, 'ok');
+
+  // Show/hide popout button
+  document.getElementById('popoutBtn').style.display = (cue.type === 'video') ? 'block' : 'none';
+
+  setTimeout(renderTimeline, 50); // 重繪時間軸（fade 方塊）
+}
+
+function updateFilePathDisplay(cue) {
+  const np = document.getElementById('npPath');
+  np.innerHTML = '';
+  if (cue.filePath) {
+    // 用 DOM API + addEventListener，避免 onclick 字串注入（XSS）
+    np.innerHTML = `<span class="path-ok">✓</span><span class="path-text" title="${esc(cue.filePath)}">${esc(cue.filePath)}</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'show-in-folder';
+    btn.textContent = '📁';
+    btn.addEventListener('click', () => showInFolder(cue.filePath));
+    np.appendChild(btn);
+  } else if (cue.url) {
+    np.innerHTML = `<span class="path-ok">🔗</span><span class="path-text">${esc(cue.url)}</span>`;
+  } else {
+    np.innerHTML = `<span class="path-text path-none">尚未選取檔案 — 請至「檔案」頁籤選取</span>`;
+  }
+}
+
+async function showInFolder(p) { if (isElectron) await window.electronAPI.showInFolder(p); }
+
+// ══════════════════════════════════════════
+// RENDER CUE LIST
+// ══════════════════════════════════════════
+function renderCueList() {
+  const el = document.getElementById('cue-list');
+  el.innerHTML = '';
+  project.cues.forEach((cue, i) => {
+    const d = document.createElement('div');
+    d.className = 'cue-item' + (i === activeCueIdx ? ' active' : '');
+    d.dataset.idx = i;
+    const vol = Math.round(cue.default_volume * 100);
+    const hasFile = cue.filePath || cue.url;
+    d.innerHTML = `
+      <span class="cue-num">${i + 1}</span>
+      <div class="cue-icon ${cue.type}">
+        ${cue.type === 'audio'
+          ? '<svg viewBox="0 0 14 14"><path d="M6 1v8.3A2 2 0 1 1 4 11V4.5l6-1.5v6.8A2 2 0 1 1 8 11V3z"/></svg>'
+          : '<svg viewBox="0 0 14 14"><path d="M1 3h8a1 1 0 0 1 1 1v2l3-2v6l-3-2v2a1 1 0 0 1-1 1H1z"/></svg>'}
+      </div>
+      <div class="cue-body">
+        <div class="cue-name">${esc(cue.name)}</div>
+        <div class="cue-sub">
+          <span class="ctag ${cue.type}">${cue.type}</span>
+          ${cue.fade_out_duration ? `<span class="ctag fade">${(cue.fade_out_duration/1000).toFixed(0)}s</span>` : ''}
+          ${cue.auto_next ? '<span class="ctag auto">auto→</span>' : ''}
+          ${!hasFile ? '<span class="ctag missing">無檔案</span>' : ''}
+        </div>
+      </div>
+      <span class="cue-vol-b">${vol}%</span>
+      <button class="cue-del hide-in-perf" data-del="${i}" title="刪除">×</button>`;
+    d.addEventListener('click', () => selectCue(i));
+    d.querySelector('.cue-del')?.addEventListener('click', e => {
+      e.stopPropagation();
+      if (confirm(`確定刪除「${cue.name}」？`)) {
+        project.cues.splice(i, 1);
+        if (activeCueIdx >= project.cues.length) activeCueIdx = project.cues.length - 1;
+        saveProject(); renderCueList();
+        if (activeCueIdx >= 0) selectCue(activeCueIdx);
+        toast('已刪除', 'warn');
+      }
+    });
+    el.appendChild(d);
+  });
+  document.getElementById('pTotal').textContent = project.cues.length;
+  document.getElementById('tb-proj-name').textContent = project.project_name || '未命名';
+}
+
+// ══════════════════════════════════════════
+// PROPERTIES & FILE PANEL
+// ══════════════════════════════════════════
+function updatePropsPanel(cue) {
+  document.getElementById('pName').value = cue.name;
+  document.getElementById('pNameShow').textContent = cue.name;
+  document.getElementById('pType').textContent = cue.type;
+  document.getElementById('pVol').textContent = Math.round(cue.default_volume * 100) + '%';
+  document.getElementById('pFO').value = cue.fade_out_duration;
+  document.getElementById('pFI').value = cue.fade_in_duration;
+  const an = document.getElementById('pAutoNext');
+  an.textContent = cue.auto_next ? 'ON' : 'OFF';
+  an.className = 'prop-badge ' + (cue.auto_next ? 'on' : 'off');
+}
+
+function updateFileTab(cue) {
+  const hasFP = !!cue.filePath, hasUrl = !!cue.url;
+  const dot = document.getElementById('fsDot'), lbl = document.getElementById('fsLabel');
+  const card = document.getElementById('filePathCard');
+  document.getElementById('fpcPath').textContent = cue.filePath || cue.url || '—';
+  document.getElementById('urlInp').value = cue.url || '';
+  if (hasFP) { dot.className = 'fs-dot ok'; lbl.textContent = cue.fileName || '已選取本機檔案'; card.style.display = ''; }
+  else if (hasUrl) { dot.className = 'fs-dot ok'; lbl.textContent = 'URL 已設定'; card.style.display = ''; }
+  else { dot.className = 'fs-dot none'; lbl.textContent = '尚未選取'; card.style.display = 'none'; }
+}
+
+// ══════════════════════════════════════════
+// FILE SELECTION
+// ══════════════════════════════════════════
+async function handleFileSelect() {
+  if (activeCueIdx < 0) { toast('請先選擇一個 Cue', 'warn'); return; }
+  if (isElectron) {
+    const info = await window.electronAPI.openFile();
+    if (!info) return;
+    const cue = project.cues[activeCueIdx];
+    cue.filePath = info.filePath;
+    cue.fileName = info.fileName;
+    cue.url = '';
+    cue.name = info.fileName.replace(/\.[^.]+$/, '');
+    cue.type = info.detectedType || ((/\.(mp4|mov|mkv|avi|webm)$/i.test(info.fileName)) ? 'video' : 'audio');
+    markDirty(); saveProject();
+    renderCueList(); updatePropsPanel(cue); updateFileTab(cue); updateFilePathDisplay(cue);
+    selectCue(activeCueIdx);
+    toast('✓ 檔案已選取：' + info.fileName, 'ok');
+  } else {
+    const inp = Object.assign(document.createElement('input'), { type: 'file', accept: 'audio/*,video/*' });
+    inp.onchange = e => {
+      const file = e.target.files[0]; if (!file) return;
+      const cue = project.cues[activeCueIdx];
+      // Revoke old blob url
+      if (cue.url && cue.url.startsWith('blob:')) URL.revokeObjectURL(cue.url);
+      clearMediaCache(cue.id);
+      cue.url = URL.createObjectURL(file);
+      cue.filePath = ''; cue.fileName = file.name;
+      cue.name = file.name.replace(/\.[^.]+$/, '');
+      // Auto-detect type from MIME
+      if (file.type.startsWith('video/') || /\.(mp4|mov|mkv|avi|webm|m4v)$/i.test(file.name)) cue.type = 'video';
+      else cue.type = 'audio';
+      markDirty(); saveProject();
+      renderCueList(); updatePropsPanel(cue); updateFileTab(cue); updateFilePathDisplay(cue);
+      selectCue(activeCueIdx);
+      toast('✓ 檔案已載入', 'ok');
+    };
+    inp.click();
+  }
+}
+
+// ══════════════════════════════════════════
+// SCHEDULER
+// ══════════════════════════════════════════
+// 解析時間字串為秒：支援 "90"、"1:30"、"01:02:03"
+function parseSchedTime(str) {
+  const parts = String(str).trim().split(':').map(Number);
+  if (parts.some(n => !isFinite(n))) return null;
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return null;
+}
+
+// 從動作描述推斷要執行的自動化動作（關鍵字比對）
+function runScheduledAction(action) {
+  const a = String(action);
+  if (/淡出|fade\s*out|fo\b/i.test(a))      document.getElementById('btnFO').click();
+  else if (/淡入|fade\s*in|fi\b/i.test(a))  document.getElementById('btnFI').click();
+  else if (/duck|閃避|壓低/i.test(a))        document.getElementById('btnDuck').click();
+  else if (/下一|next/i.test(a))            document.getElementById('btnCueNext').click();
+  else if (/停止|stop/i.test(a))            document.getElementById('btnStop').click();
+  toast(`⏱ 排程觸發：${action}`, 'warn');
+}
+
+// 在每次進度更新時檢查是否有排程到點需要觸發
+function checkSchedules(curSec) {
+  if (activeCueIdx < 0 || !isPlaying) return;
+  const scheds = project.cues[activeCueIdx].schedules || [];
+  let changed = false;
+  scheds.forEach(s => {
+    if (s.done) return;
+    const at = parseSchedTime(s.time);
+    if (at != null && curSec >= at) {
+      s.done = true; changed = true;
+      runScheduledAction(s.action);
+    }
+  });
+  if (changed) { renderScheduler(); saveProject(); }
+}
+
+function renderScheduler() {
+  const list = document.getElementById('schedList');
+  list.innerHTML = '';
+  const scheds = (project.cues[activeCueIdx] && project.cues[activeCueIdx].schedules) || [];
+  scheds.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'sched-row';
+    el.innerHTML = `<span class="sched-time">${esc(s.time)}</span><span class="sched-act">${esc(s.action)}</span><div class="sched-dot ${s.done?'done':'pending'}"></div><button class="sched-del hide-in-perf" data-i="${i}">×</button>`;
+    el.querySelector('.sched-del')?.addEventListener('click', ev => {
+      scheds.splice(parseInt(ev.target.dataset.i), 1);
+      saveProject(); renderScheduler();
+    });
+    list.appendChild(el);
+  });
+}
+
+// ══════════════════════════════════════════
+// WAVEFORM
+// ══════════════════════════════════════════
+function drawWaveform() {
+  const c = document.getElementById('wv');
+  c.width = c.offsetWidth * devicePixelRatio;
+  c.height = 28 * devicePixelRatio;
+  const ctx = c.getContext('2d');
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const w = c.offsetWidth, h = 28;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(0,212,161,0.5)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x < w; x++) {
+    const v = Math.sin(x * 0.28) * 0.5 + Math.sin(x * 0.07) * 0.35 + Math.sin(x * 1.2 + 1) * 0.15;
+    const a = h / 2 * 0.72 * Math.abs(v);
+    ctx.moveTo(x, h/2 - a); ctx.lineTo(x, h/2 + a);
+  }
+  ctx.stroke();
+}
+
+// ══════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════
+let toastTimer;
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 2400);
+}
+
+// ══════════════════════════════════════════
+// PLAY ICON
+// ══════════════════════════════════════════
+function updatePlayIco() {
+  document.getElementById('playIco').innerHTML = isPlaying
+    ? '<rect x="3" y="2" width="3" height="10"/><rect x="8" y="2" width="3" height="10"/>'
+    : '<path d="M4 2.5l7 4.5-7 4.5z"/>';
+}
+
+// ══════════════════════════════════════════
+// PERFORMANCE MODE
+// ══════════════════════════════════════════
+document.getElementById('perfToggle').onclick = () => {
+  perfMode = !perfMode;
+  document.getElementById('perfToggle').classList.toggle('active', perfMode);
+  document.body.classList.toggle('perf-mode', perfMode);
+  // Show/hide pName vs pNameShow
+  document.getElementById('pName').style.display = perfMode ? 'none' : '';
+  document.getElementById('pNameShow').style.display = perfMode ? '' : 'none';
+  toast(perfMode ? '🔒 演出模式開啟 — 編輯功能已隱藏' : '🔓 演出模式關閉 — 編輯功能已恢復', perfMode ? 'warn' : 'ok');
+};
+
+// ══════════════════════════════════════════
+// EVENT LISTENERS
+// ══════════════════════════════════════════
+
+// Win controls
+document.getElementById('btnMin').onclick = () => isElectron && window.electronAPI.minimize();
+document.getElementById('btnMax').onclick = () => isElectron && window.electronAPI.maximize();
+document.getElementById('btnClose').onclick = () => isElectron && window.electronAPI.close();
+
+// Master volume
+document.getElementById('masterVol').addEventListener('input', e => {
+  const v = parseInt(e.target.value) / 100;
+  project.settings.master_volume = v;
+  document.getElementById('masterValOut').textContent = e.target.value + '%';
+  setGainNow(parseFloat(document.getElementById('cueVol').value) / 100); // 套用至當前播放元素
+  markDirty(); saveProject();
+});
+
+// Cue volume with feedback beep
+document.getElementById('cueVol').addEventListener('input', e => {
+  const pct = parseInt(e.target.value);
+  document.getElementById('cueVolOut').textContent = pct + '%';
+  if (activeCueIdx >= 0) {
+    project.cues[activeCueIdx].default_volume = pct / 100;
+    document.getElementById('pVol').textContent = pct + '%';
+    const badge = document.querySelector(`.cue-item:nth-child(${activeCueIdx+1}) .cue-vol-b`);
+    if (badge) badge.textContent = pct + '%';
+    markDirty(); saveProject();
+  }
+  // 播放中：即時套用音量；未播放：以嗶聲回饋音量大小
+  if (isPlaying) {
+    setGainNow(pct / 100); // 統一由 setGainNow 套用至實際播放元素（含 master）
+  } else {
+    playFeedbackBeep(pct / 100);
+  }
+});
+
+// Fade duration
+document.getElementById('fadeDur').addEventListener('input', e => {
+  document.getElementById('fadeDurOut').textContent = (parseInt(e.target.value)/1000).toFixed(1) + 's';
+  if (activeCueIdx >= 0) project.cues[activeCueIdx].fade_out_duration = parseInt(e.target.value);
+});
+
+// Play/Pause
+document.getElementById('btnPlay').onclick = () => {
+  if (activeCueIdx < 0) { toast('請先選擇一個 Cue', 'warn'); return; }
+  ensureCtx();
+  const cue = project.cues[activeCueIdx];
+  isPlaying = !isPlaying;
+  updatePlayIco();
+  if (isPlaying) {
+    loadAndPlay(cue, pauseOffset);
+    document.querySelector(`.cue-item:nth-child(${activeCueIdx+1})`)?.classList.add('playing');
+  } else {
+    pauseOffset = getCurTime();
+    if (audioSrc) { try { audioSrc.stop(); } catch(e){} audioSrc = null; }
+    if (cue.type === 'video') { videoEl.pause(); if (popoutWin && !popoutWin.closed) { try { popoutWin.document.getElementById('pv').pause(); } catch(e){} } }
+    else { audioEl.pause(); }
+    clearInterval(progTimer);
+    document.querySelectorAll('.cue-item').forEach(el => el.classList.remove('playing'));
+  }
+};
+
+// Stop
+document.getElementById('btnStop').onclick = () => {
+  isPlaying = false; updatePlayIco(); pauseOffset = 0; audioBuf = null;
+  if (audioSrc) { try { audioSrc.stop(); } catch(e){} audioSrc = null; }
+  audioEl.pause(); audioEl.currentTime = 0; audioEl.src = '';
+  videoEl.pause(); videoEl.currentTime = 0;
+  if (popoutWin && !popoutWin.closed) { try { const pv = popoutWin.document.getElementById('pv'); pv.pause(); pv.currentTime = 0; } catch(e){} }
+  clearInterval(progTimer);
+  document.getElementById('progFill').style.width = '0%';
+  document.getElementById('tCur').textContent = '0:00';
+  document.querySelectorAll('.cue-item').forEach(el => el.classList.remove('playing'));
+};
+
+// Prev / Next
+document.getElementById('btnPrev').onclick = () => { if (activeCueIdx > 0) selectCue(activeCueIdx - 1); };
+document.getElementById('btnNext').onclick = () => { if (activeCueIdx < project.cues.length-1) selectCue(activeCueIdx+1); };
+document.getElementById('btnCueNext').onclick = () => { if (activeCueIdx < project.cues.length-1) selectCue(activeCueIdx+1); };
+
+// Fade In
+document.getElementById('btnFI').onclick = () => {
+  if (activeCueIdx < 0) return;
+  const cue = project.cues[activeCueIdx];
+  document.getElementById('cueVol').value = 0;
+  document.getElementById('cueVolOut').textContent = '0%';
+  setGainNow(0.001);
+  if (cue.type === 'video') videoEl.volume = 0;
+  smoothGain(cue.default_volume, cue.fade_in_duration, () => toast('淡入完成', 'ok'));
+  toast(`淡入 ${(cue.fade_in_duration/1000).toFixed(1)}s 中…`);
+};
+
+// Fade Out
+document.getElementById('btnFO').onclick = () => {
+  if (activeCueIdx < 0) return;
+  const dur = parseInt(document.getElementById('fadeDur').value);
+  smoothGain(0, dur, () => { isPlaying = false; updatePlayIco(); toast('淡出完成', 'ok'); });
+  toast(`淡出 ${(dur/1000).toFixed(1)}s 中…`);
+};
+
+// Duck
+document.getElementById('btnDuck').onclick = () => {
+  const cur = parseInt(document.getElementById('cueVol').value) / 100;
+  smoothGain(cur * 0.25, 300);
+  toast(`Duck → ${Math.round(cur * 25)}%`, 'warn');
+};
+
+// Recall
+document.getElementById('btnRecall').onclick = () => {
+  if (activeCueIdx < 0) return;
+  smoothGain(project.cues[activeCueIdx].default_volume, 400, () => toast('Gain 已回復', 'ok'));
+};
+
+// F12 → DevTools（除錯用）
+document.addEventListener('keydown', e => {
+  if (e.key === 'F12' && isElectron) {
+    // Tell main to open devtools — but we can't do it from renderer directly without nodeIntegration
+    // Instead: user can open via Ctrl+Shift+I which Electron allows even without menu
+  }
+});
+
+// Space bar
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space') { e.preventDefault(); document.getElementById('btnPlay').click(); }
+});
+
+// Add Cue modal
+document.getElementById('addCueBtn').onclick = () => { document.getElementById('addModal').classList.add('open'); document.getElementById('mName').focus(); };
+document.getElementById('mCancel').onclick = () => document.getElementById('addModal').classList.remove('open');
+document.getElementById('mOk').onclick = () => {
+  const name = document.getElementById('mName').value.trim();
+  if (!name) { toast('請輸入名稱', 'warn'); return; }
+  project.cues.push({
+    id: cid(), type: document.getElementById('mType').value, name,
+    filePath: '', url: '', fileName: '',
+    default_volume: parseInt(document.getElementById('mVol').value) / 100,
+    fade_out_duration: parseInt(document.getElementById('mFO').value),
+    fade_in_duration: parseInt(document.getElementById('mFI').value),
+    auto_next: document.getElementById('mAuto').value === 'true',
+    schedules: []
+  });
+  saveProject(); renderCueList();
+  document.getElementById('addModal').classList.remove('open');
+  document.getElementById('mName').value = '';
+  selectCue(project.cues.length - 1);
+  toast(`已新增 Cue：${name}`, 'ok');
+};
+
+// Props edits
+document.getElementById('pName').onchange = e => {
+  if (activeCueIdx < 0) return;
+  project.cues[activeCueIdx].name = e.target.value;
+  document.getElementById('npTitle').textContent = e.target.value;
+  document.getElementById('pNameShow').textContent = e.target.value;
+  renderCueList(); saveProject();
+};
+document.getElementById('pFO').onchange = e => {
+  if (activeCueIdx < 0) return;
+  project.cues[activeCueIdx].fade_out_duration = parseInt(e.target.value) || 5000;
+  document.getElementById('fadeDur').value = project.cues[activeCueIdx].fade_out_duration;
+  document.getElementById('fadeDurOut').textContent = (project.cues[activeCueIdx].fade_out_duration/1000).toFixed(1) + 's';
+  saveProject();
+};
+document.getElementById('pFI').onchange = e => {
+  if (activeCueIdx < 0) return;
+  project.cues[activeCueIdx].fade_in_duration = parseInt(e.target.value) || 3000;
+  saveProject();
+};
+document.getElementById('pAutoNext').onclick = () => {
+  if (activeCueIdx < 0) return;
+  project.cues[activeCueIdx].auto_next = !project.cues[activeCueIdx].auto_next;
+  updatePropsPanel(project.cues[activeCueIdx]); renderCueList(); saveProject();
+};
+document.getElementById('projName').onchange = e => {
+  project.project_name = e.target.value;
+  document.getElementById('tb-proj-name').textContent = e.target.value;
+  saveProject();
+};
+
+// File tab
+document.getElementById('dropArea').onclick = handleFileSelect;
+document.getElementById('dropArea').addEventListener('dragover', e => { e.preventDefault(); document.getElementById('dropArea').classList.add('drag'); });
+document.getElementById('dropArea').addEventListener('dragleave', () => document.getElementById('dropArea').classList.remove('drag'));
+document.getElementById('dropArea').addEventListener('drop', async e => {
+  e.preventDefault(); document.getElementById('dropArea').classList.remove('drag');
+  if (!isElectron) {
+    const file = e.dataTransfer.files[0]; if (!file || activeCueIdx < 0) return;
+    const cue = project.cues[activeCueIdx];
+    if (cue.url && cue.url.startsWith('blob:')) URL.revokeObjectURL(cue.url);
+    clearMediaCache(cue.id);
+    cue.url = URL.createObjectURL(file); cue.fileName = file.name; cue.filePath = '';
+    cue.name = file.name.replace(/\.[^.]+$/, '');
+    if (file.type.startsWith('video/') || /\.(mp4|mov|mkv|avi|webm|m4v)$/i.test(file.name)) cue.type = 'video';
+    else cue.type = 'audio';
+    markDirty(); saveProject();
+    renderCueList(); updateFileTab(cue); updateFilePathDisplay(cue); selectCue(activeCueIdx);
+    toast('檔案已載入', 'ok');
+  } else {
+    toast('請點擊選取，或直接拖放至 Electron 視窗', 'warn');
+  }
+});
+document.getElementById('showInFolderBtn').onclick = () => {
+  if (activeCueIdx >= 0 && project.cues[activeCueIdx].filePath) showInFolder(project.cues[activeCueIdx].filePath);
+};
+document.getElementById('clearFileBtn').onclick = () => {
+  if (activeCueIdx < 0) return;
+  const cue = project.cues[activeCueIdx];
+  clearMediaCache(cue.id);
+  cue.filePath = ''; cue.url = ''; cue.fileName = '';
+  saveProject(); updateFileTab(cue); updateFilePathDisplay(cue); renderCueList();
+  toast('已移除檔案', 'warn');
+};
+document.getElementById('urlApply').onclick = () => {
+  if (activeCueIdx < 0) { toast('請先選擇 Cue', 'warn'); return; }
+  const url = document.getElementById('urlInp').value.trim();
+  if (!url) return;
+  if (!isValidMediaUrl(url)) { toast('URL 無效，僅允許 http:// 或 https://', 'err'); return; }
+  const cue = project.cues[activeCueIdx];
+  cue.url = url; cue.filePath = ''; cue.fileName = '';
+  saveProject(); updateFileTab(cue); updateFilePathDisplay(cue);
+  toast('URL 已套用', 'ok');
+};
+
+// Scheduler
+document.getElementById('schedAdd').onclick = () => {
+  if (activeCueIdx < 0) { toast('請先選擇 Cue', 'warn'); return; }
+  const t = document.getElementById('schedT').value.trim();
+  const a = document.getElementById('schedA').value.trim();
+  if (!t || !a) { toast('請填入時間與動作', 'warn'); return; }
+  if (!project.cues[activeCueIdx].schedules) project.cues[activeCueIdx].schedules = [];
+  project.cues[activeCueIdx].schedules.push({ time: t, action: a, done: false });
+  saveProject(); renderScheduler();
+  document.getElementById('schedT').value = ''; document.getElementById('schedA').value = '';
+  toast('排程已新增', 'ok');
+};
+
+// Tabs
+document.querySelectorAll('.rp-tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.rp-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    ['props','file','store'].forEach(id => {
+      document.getElementById('tab-'+id).style.display = id === tab.dataset.tab ? '' : 'none';
+    });
+  };
+});
+
+// Export / Import
+document.getElementById('btnExport').onclick = async () => {
+  if (isElectron) {
+    const ok = await window.electronAPI.exportJson(project);
+    if (ok) toast('JSON 已匯出', 'ok');
+  } else {
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([JSON.stringify(project,null,2)],{type:'application/json'})),
+      download: (project.project_name||'show')+'.json'
+    }); a.click(); toast('JSON 已匯出', 'ok');
+  }
+};
+document.getElementById('btnImport').onclick = async () => {
+  if (isElectron) {
+    const data  = await window.electronAPI.importJson();
+    const clean = sanitizeProject(data);
+    if (clean) { project = clean; saveProject(); renderCueList(); activeCueIdx=-1; toast('JSON 已匯入', 'ok'); }
+    else toast('匯入失敗、格式錯誤或已取消', 'warn');
+  } else {
+    const inp = Object.assign(document.createElement('input'),{type:'file',accept:'.json'});
+    inp.onchange = e => {
+      const f = e.target.files[0]; if(!f) return;
+      const r = new FileReader(); r.onload = ev => {
+        try {
+          const clean = sanitizeProject(JSON.parse(ev.target.result));
+          if (!clean) { toast('JSON 結構無效','err'); return; }
+          project = clean; saveProject(); renderCueList(); activeCueIdx=-1; toast('JSON 已匯入','ok');
+        } catch(e){ toast('JSON 格式錯誤','err'); }
+      }; r.readAsText(f);
+    }; inp.click();
+  }
+};
+
+document.getElementById('btnReset').onclick = () => {
+  if (confirm('確定要清除所有資料嗎？此操作無法還原。')) {
+    project = defaultProject();
+    saveProject(); renderCueList(); activeCueIdx=-1;
+    document.getElementById('npTitle').textContent = '— 請選擇一個 Cue —';
+    document.getElementById('npMeta').textContent = '等待播放';
+    toast('已重置', 'warn');
+  }
+};
+
+// Progress seek
+document.getElementById('progWrap').onclick = e => {
+  if (activeCueIdx < 0) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  const seek = pct * getTotTime();
+  pauseOffset = seek;
+  if (isPlaying) {
+    const cue = project.cues[activeCueIdx];
+    if (cue.type === 'video') {
+      videoEl.currentTime = seek;
+      if (popoutWin && !popoutWin.closed) { try { popoutWin.document.getElementById('pv').currentTime = seek; } catch(e){} }
+    } else {
+      // <audio> 可以直接 seek，不需要重新載入
+      if (audioEl.src && isFinite(audioEl.duration)) {
+        audioEl.currentTime = seek;
+      } else {
+        loadAndPlay(cue, seek);
+      }
+    }
+  }
+};
+
+// SFX buttons
+document.querySelectorAll('.sfx-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    // Don't fire if clicking on the volume slider
+    if (e.target.classList.contains('sfx-vol')) return;
+    playSfx(btn.dataset.sfx);
+  });
+});
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+(async function init() {
+  await loadProject();
+  document.getElementById('projName').value = project.project_name || '';
+  document.getElementById('tb-proj-name').textContent = project.project_name || '';
+  document.getElementById('masterVol').value = Math.round((project.settings.master_volume||1)*100);
+  document.getElementById('masterValOut').textContent = Math.round((project.settings.master_volume||1)*100)+'%';
+  renderCueList();
+  drawWaveform();
+  if (project.cues.length > 0) {
+    activeCueIdx = 0;
+    const cue = project.cues[0];
+    document.querySelector('.cue-item')?.classList.add('active');
+    document.getElementById('npTitle').textContent = cue.name;
+    document.getElementById('npMeta').textContent = `${cue.type} · 淡出 ${(cue.fade_out_duration/1000).toFixed(1)}s · cue 1/${project.cues.length}`;
+    updateFilePathDisplay(cue);
+    updatePropsPanel(cue);
+    updateFileTab(cue);
+    const vol = Math.round(cue.default_volume * 100);
+    document.getElementById('cueVol').value = vol;
+    document.getElementById('cueVolOut').textContent = vol + '%';
+    document.getElementById('fadeDur').value = cue.fade_out_duration;
+    document.getElementById('fadeDurOut').textContent = (cue.fade_out_duration/1000).toFixed(1) + 's';
+    renderScheduler();
+    if (cue.type === 'video') showVideoArea(true);
+    document.getElementById('popoutBtn').style.display = (cue.type === 'video') ? 'block' : 'none';
+  }
+  // Init timeline
+  setTimeout(renderTimeline, 100);
+})();
+
+// ══════════════════════════════════════════
+// FONT SIZE CONTROL
+// ══════════════════════════════════════════
+const FONT_SIZES = [12, 14, 16, 18];
+let curFontSize = 14;
+
+function applyFontSize(size) {
+  curFontSize = size;
+  document.documentElement.style.setProperty('--base-size', size + 'px');
+  document.getElementById('fsCurLabel').textContent = size + 'px';
+  document.querySelectorAll('.fs-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.size) === size);
+  });
+}
+
+document.getElementById('fsSizebtns').addEventListener('click', e => {
+  const btn = e.target.closest('.fs-btn');
+  if (!btn) return;
+  applyFontSize(parseInt(btn.dataset.size));
+});
+
+// ══════════════════════════════════════════
+// TIMELINE
+// ══════════════════════════════════════════
+let tlDur = 240; // total duration in seconds (editable)
+let tlBlocks = {}; // keyed by cueId: { fi: {start, dur}, fo: {start, dur} }
+let tlDragging = null; // { blockEl, type, action:'move'|'resize', startX, origStart, origDur }
+
+function getTlDur() {
+  const v = parseFloat(document.getElementById('tlDurInp').value);
+  return isFinite(v) && v > 0 ? v : 240;
+}
+
+function pctToSec(pct) { return pct / 100 * getTlDur(); }
+function secToPct(sec) { return sec / getTlDur() * 100; }
+
+function renderTimeline() {
+  const wrap = document.getElementById('tlWrap');
+  const ruler = document.getElementById('tlRuler');
+  const empty = document.getElementById('tlEmpty');
+
+  // Remove old blocks
+  wrap.querySelectorAll('.tl-block').forEach(el => el.remove());
+
+  const dur = getTlDur();
+  const cue = activeCueIdx >= 0 ? project.cues[activeCueIdx] : null;
+
+  // Draw ruler ticks
+  ruler.innerHTML = '';
+  const tickInterval = dur <= 60 ? 5 : dur <= 300 ? 30 : dur <= 900 ? 60 : 120;
+  for (let t = 0; t <= dur; t += tickInterval) {
+    const tick = document.createElement('div');
+    tick.className = 'tl-tick';
+    tick.style.left = secToPct(t) + '%';
+    tick.innerHTML = `<div class="tl-tick-line"></div><div class="tl-tick-label">${fmt(t)}</div>`;
+    ruler.appendChild(tick);
+  }
+
+  if (!cue) { empty.style.display = 'flex'; return; }
+  empty.style.display = 'none';
+
+  // Ensure block data exists for this cue
+  if (!tlBlocks[cue.id]) {
+    tlBlocks[cue.id] = {
+      fi: { start: 0,          dur: (cue.fade_in_duration  || 3000) / 1000 },
+      fo: { start: Math.max(0, dur - (cue.fade_out_duration || 5000) / 1000),
+            dur:   (cue.fade_out_duration || 5000) / 1000 }
+    };
+  }
+  const blocks = tlBlocks[cue.id];
+
+  // Clamp fo start so it doesn't go past end
+  blocks.fo.start = Math.min(blocks.fo.start, dur - blocks.fo.dur);
+  blocks.fi.dur   = Math.min(blocks.fi.dur, dur);
+
+  ['fi', 'fo'].forEach(type => {
+    const b = blocks[type];
+    const el = document.createElement('div');
+    el.className = 'tl-block ' + type;
+    el.dataset.type = type;
+    el.style.left  = secToPct(b.start) + '%';
+    el.style.width = secToPct(b.dur)   + '%';
+
+    const durLabel = b.dur >= 1 ? b.dur.toFixed(1) + 's' : Math.round(b.dur * 1000) + 'ms';
+    el.innerHTML = `
+      <span class="tl-block-label">${type === 'fi' ? '▶ Fade In' : 'Fade Out ◀'} ${durLabel}</span>
+      <div class="tl-resize" title="拖拉調整時長"></div>`;
+
+    // Drag to move
+    el.addEventListener('mousedown', onTlBlockMousedown);
+    wrap.appendChild(el);
+  });
+}
+
+// 只更新單一 block 的位置 / 寬度 / 標籤，避免拖拉時整個 timeline 重建（效能）
+function updateTlBlockEl(type) {
+  const cue = activeCueIdx >= 0 ? project.cues[activeCueIdx] : null;
+  if (!cue || !tlBlocks[cue.id]) return;
+  const b  = tlBlocks[cue.id][type];
+  const el = document.querySelector(`.tl-block.${type}`);
+  if (!el) return;
+  el.style.left  = secToPct(b.start) + '%';
+  el.style.width = secToPct(b.dur)   + '%';
+  const durLabel = b.dur >= 1 ? b.dur.toFixed(1) + 's' : Math.round(b.dur * 1000) + 'ms';
+  const lbl = el.querySelector('.tl-block-label');
+  if (lbl) lbl.textContent = `${type === 'fi' ? '▶ Fade In' : 'Fade Out ◀'} ${durLabel}`;
+}
+
+function onTlBlockMousedown(e) {
+  if (e.target.classList.contains('tl-resize')) {
+    startTlDrag(e, e.currentTarget.dataset.type, 'resize');
+  } else {
+    startTlDrag(e, e.currentTarget.dataset.type, 'move');
+  }
+}
+
+function startTlDrag(e, type, action) {
+  e.preventDefault();
+  if (activeCueIdx < 0) return;
+  const cue = project.cues[activeCueIdx];
+  if (!tlBlocks[cue.id]) renderTimeline();
+  const b = tlBlocks[cue.id][type];
+  tlDragging = {
+    type, action,
+    startX: e.clientX,
+    origStart: b.start,
+    origDur:   b.dur,
+    cueId: cue.id,
+  };
+}
+
+document.addEventListener('mousemove', e => {
+  if (!tlDragging) return;
+  const wrap = document.getElementById('tlWrap');
+  const rect  = wrap.getBoundingClientRect();
+  const dur   = getTlDur();
+  const dxPct = (e.clientX - tlDragging.startX) / rect.width * 100;
+  const dxSec = pctToSec(dxPct);
+
+  const b = tlBlocks[tlDragging.cueId]?.[tlDragging.type];
+  if (!b) return;
+
+  if (tlDragging.action === 'move') {
+    b.start = Math.max(0, Math.min(dur - b.dur, tlDragging.origStart + dxSec));
+  } else {
+    // resize
+    const newDur = Math.max(0.5, Math.min(dur - b.start, tlDragging.origDur + dxSec));
+    b.dur = newDur;
+  }
+
+  // Sync back to cue
+  const cue = project.cues.find(c => c.id === tlDragging.cueId);
+  if (cue) {
+    if (tlDragging.type === 'fi') {
+      cue.fade_in_duration = Math.round(b.dur * 1000);
+      document.getElementById('pFI').value = cue.fade_in_duration;
+    } else {
+      cue.fade_out_duration = Math.round(b.dur * 1000);
+      document.getElementById('pFO').value = cue.fade_out_duration;
+      document.getElementById('fadeDur').value = cue.fade_out_duration;
+      document.getElementById('fadeDurOut').textContent = (cue.fade_out_duration / 1000).toFixed(1) + 's';
+    }
+    markDirty(); saveProject();
+  }
+  updateTlBlockEl(tlDragging.type); // 只更新被拖拉的方塊，不重建整個 timeline
+});
+
+document.addEventListener('mouseup', () => { tlDragging = null; });
+
+// Update playhead
+function updateTlPlayhead() {
+  const pct = activeCueIdx >= 0 ? secToPct(getCurTime()) : 0;
+  const ph = document.getElementById('tlPlayhead');
+  if (ph) ph.style.left = Math.min(100, pct) + '%';
+}
+
+// （updateProgress 與 selectCue 已直接整合時間軸更新，不再使用 monkey patch）
+
+// Timeline total duration input
+document.getElementById('tlDurInp').addEventListener('change', e => {
+  tlDur = parseFloat(e.target.value) || 240;
+  renderTimeline();
+});
+
+
+</script>
+</body>
+</html>
