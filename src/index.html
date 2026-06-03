@@ -9,14 +9,14 @@
 :root {
   --bg:#0a0c0f; --bg2:#111418; --bg3:#181c22; --bg4:#1e232b; --bg5:#242930;
   --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
-  --text:#e8eaf0; --text2:#8b909e; --text3:#4e5464;
+  --text:#e8eaf0; --text2:#8b909e; --text3:#6b7280;
   --accent:#00d4a1; --accent2:#00a87e; --accent-glow:rgba(0,212,161,0.15);
   --red:#ff5f5f; --red-dim:rgba(255,95,95,0.1);
   --amber:#f0a020; --amber-dim:rgba(240,160,32,0.1);
   --blue:#4a9eff; --blue-dim:rgba(74,158,255,0.1);
   --purple:#a78bfa; --purple-dim:rgba(167,139,250,0.1);
   --r:8px; --r-lg:12px;
-  --mono:'Times New Roman',ui-monospace,'Cascadia Mono','Consolas',monospace;
+  --mono:ui-monospace,'Cascadia Mono','Consolas','Courier New',monospace;
   --sans:'Times New Roman',ui-serif,Georgia,'Microsoft JhengHei','PMingLiU',serif;
   --base-size:14px;
 }
@@ -38,7 +38,10 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 #panicBtn:active{transform:scale(0.96)}
 
 /* PERFORMANCE MODE TOGGLE */
-.perf-toggle{-webkit-app-region:no-drag;display:flex;align-items:center;gap:7px;margin-right:14px;cursor:pointer}
+.perf-toggle{-webkit-app-region:no-drag;display:flex;align-items:center;gap:7px;margin-right:14px;cursor:pointer;background:transparent;border:none;color:inherit;font-family:inherit;padding:0}
+/* 屬性面板開關鈕：僅窄寬度顯示 */
+#btnPanel{display:none}
+@media (max-width:1000px){#btnPanel{display:flex}}
 .perf-label{font-family:var(--mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;white-space:nowrap}
 .toggle-sw{width:34px;height:18px;background:var(--bg4);border-radius:9px;border:1px solid var(--border2);position:relative;transition:all 0.2s;flex-shrink:0}
 .toggle-sw::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--text3);transition:all 0.2s}
@@ -192,7 +195,7 @@ canvas#wv{width:100%;height:28px;display:block;opacity:0.4;margin-bottom:8px}
 /* ── RIGHT PANEL ── */
 #rpanel{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .rp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
-.rp-tab{flex:1;padding:9px 4px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.12s;text-transform:uppercase;letter-spacing:0.08em}
+.rp-tab{flex:1;padding:9px 4px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--text3);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;transition:all 0.12s;text-transform:uppercase;letter-spacing:0.08em}
 .rp-tab:hover{color:var(--text2)}
 .rp-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .rp-body{flex:1;overflow-y:auto;padding:11px}
@@ -290,50 +293,77 @@ body.perf-mode .hide-in-perf{display:none!important}
 /* FEEDBACK BEEP visual indicator */
 .vol-feedback{position:absolute;right:2px;bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:0;transition:opacity 0.05s}
 .vol-feedback.flash{opacity:1}
+
+/* ── ACCESSIBILITY：鍵盤可見的 focus ring（滑鼠操作不顯示）── */
+button:focus-visible,input:focus-visible,select:focus-visible,
+[role="button"]:focus-visible,.cue-item:focus-visible,.rp-tab:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* ── RESPONSIVE：視窗變窄時收合 / 隱藏側欄，避免跑版 ── */
+#rpanel-backdrop{display:none;position:fixed;inset:44px 0 0 0;background:rgba(0,0,0,0.4);z-index:49}
+@media (max-width:1180px){
+  #layout{grid-template-columns:240px 1fr 220px}
+}
+@media (max-width:1100px){
+  .tb-master-label,.perf-label{display:none}
+  .tb-master input{width:60px}
+}
+@media (max-width:1000px){
+  #layout{grid-template-columns:220px 1fr}
+  #rpanel{position:fixed;right:0;top:44px;bottom:0;width:300px;
+          transform:translateX(100%);transition:transform .2s;z-index:50;
+          box-shadow:-8px 0 24px rgba(0,0,0,0.5)}
+  #rpanel.open{transform:translateX(0)}
+  #rpanel-backdrop.open{display:block}
+}
 </style>
 </head>
 <body>
 
 <!-- TITLEBAR -->
-<div id="titlebar">
-  <div class="tb-logo"><svg viewBox="0 0 12 12"><polygon points="6,1 11,6 6,11 1,6"/></svg></div>
+<header id="titlebar">
+  <div class="tb-logo" aria-hidden="true"><svg viewBox="0 0 12 12"><polygon points="6,1 11,6 6,11 1,6"/></svg></div>
   <span class="tb-title">SHOW CONTROLLER</span>
   <span class="tb-proj" id="tb-proj-name">載入中…</span>
   <div class="tb-spacer"></div>
-  <div class="perf-toggle" id="perfToggle" title="演出模式：隱藏編輯功能，防止誤操作">
+  <button class="perf-toggle" id="perfToggle" title="演出模式：隱藏編輯功能，防止誤操作" aria-pressed="false" aria-label="切換演出模式（防呆）">
     <span class="perf-label">切換至演出模式 (防呆)</span>
-    <div class="toggle-sw"></div>
-  </div>
-  <button id="panicBtn" title="緊急切斷所有聲音與畫面">⚠ PANIC</button>
+    <div class="toggle-sw" aria-hidden="true"></div>
+  </button>
+  <button id="panicBtn" title="緊急切斷所有聲音與畫面" aria-label="緊急切斷所有聲音與畫面">⚠ PANIC</button>
   <div class="tb-master">
-    <span class="tb-master-label">MASTER</span>
-    <input type="range" id="masterVol" min="0" max="100" value="90">
+    <label class="tb-master-label" for="masterVol">MASTER</label>
+    <input type="range" id="masterVol" min="0" max="100" value="90" aria-label="主音量">
     <span class="tb-master-val" id="masterValOut">90%</span>
   </div>
   <div class="tb-save">
-    <div class="save-dot" id="saveDot"></div>
+    <div class="save-dot" id="saveDot" aria-hidden="true"></div>
     <span id="saveLabel">已儲存</span>
   </div>
   <div class="win-controls">
-    <button class="wc-btn" id="btnMin"><svg viewBox="0 0 10 2"><rect y="0" width="10" height="2"/></svg></button>
-    <button class="wc-btn" id="btnMax"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
-    <button class="wc-btn close" id="btnClose"><svg viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5"/></svg></button>
+    <button class="wc-btn" id="btnPanel" title="開關屬性面板" aria-label="開關屬性面板"><svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/><line x1="6.5" y1="0.5" x2="6.5" y2="9.5" stroke="currentColor" stroke-width="1"/></svg></button>
+    <button class="wc-btn" id="btnMin" aria-label="最小化視窗"><svg viewBox="0 0 10 2"><rect y="0" width="10" height="2"/></svg></button>
+    <button class="wc-btn" id="btnMax" aria-label="最大化 / 還原視窗"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+    <button class="wc-btn close" id="btnClose" aria-label="關閉視窗"><svg viewBox="0 0 10 10"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5"/></svg></button>
   </div>
-</div>
+</header>
 
+<div id="rpanel-backdrop"></div>
 <div id="layout">
 
   <!-- CUE LIST -->
-  <div id="sidebar">
+  <aside id="sidebar" aria-label="Cue 清單">
     <div class="sl-header">
       <span class="sl-title">CUE LIST</span>
       <button class="sl-add hide-in-perf" id="addCueBtn">+ 新增 Cue</button>
     </div>
-    <div id="cue-list"></div>
-  </div>
+    <div id="cue-list" role="listbox" aria-label="Cue 清單"></div>
+  </aside>
 
   <!-- PLAYER -->
-  <div id="player">
+  <main id="player">
     <!-- VIDEO AREA -->
     <div id="video-area" style="height:0px">
       <video id="mainVideo" preload="auto" playsinline></video>
@@ -415,10 +445,10 @@ body.perf-mode .hide-in-perf{display:none!important}
         <button class="sched-add-btn" id="schedAdd">+ 新增</button>
       </div>
     </div>
-  </div>
+  </main>
 
   <!-- RIGHT PANEL -->
-  <div id="rpanel">
+  <aside id="rpanel" aria-label="屬性與設定面板">
     <!-- FONT SIZE CONTROL -->
     <div class="font-size-ctrl">
       <span class="fs-label">字體大小</span>
@@ -430,10 +460,10 @@ body.perf-mode .hide-in-perf{display:none!important}
       </div>
       <span class="fs-cur" id="fsCurLabel">14px</span>
     </div>
-    <div class="rp-tabs">
-      <div class="rp-tab active" data-tab="props">屬性</div>
-      <div class="rp-tab" data-tab="file">檔案</div>
-      <div class="rp-tab" data-tab="store">儲存</div>
+    <div class="rp-tabs" role="tablist" aria-label="面板分頁">
+      <button class="rp-tab active" data-tab="props" role="tab" aria-selected="true">屬性</button>
+      <button class="rp-tab" data-tab="file" role="tab" aria-selected="false">檔案</button>
+      <button class="rp-tab" data-tab="store" role="tab" aria-selected="false">儲存</button>
     </div>
     <div class="rp-body" id="tab-props">
       <div class="prop-sec">
@@ -524,7 +554,7 @@ body.perf-mode .hide-in-perf{display:none!important}
         </button>
       </div>
     </div>
-  </div>
+  </aside>
 </div>
 
 <!-- ADD CUE MODAL -->
@@ -548,6 +578,18 @@ body.perf-mode .hide-in-perf{display:none!important}
     <div class="modal-footer">
       <button class="m-cancel" id="mCancel">取消</button>
       <button class="m-ok" id="mOk">新增</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL（取代原生 confirm，融入深色 UI）-->
+<div class="overlay" id="confirmModal" role="alertdialog" aria-modal="true" aria-labelledby="confirmMsg">
+  <div class="modal" style="width:340px">
+    <div class="modal-title" id="confirmTitle">請確認</div>
+    <div id="confirmMsg" style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:6px"></div>
+    <div class="modal-footer">
+      <button class="m-cancel" id="confirmCancel">取消</button>
+      <button class="m-ok" id="confirmOk">確定</button>
     </div>
   </div>
 </div>
@@ -612,7 +654,8 @@ function sanitizeProject(data) {
     type:              c.type === 'video' ? 'video' : 'audio',
     name:              typeof c.name === 'string' ? c.name : '未命名 Cue',
     filePath:          typeof c.filePath === 'string' ? c.filePath : '',
-    url:               typeof c.url === 'string' ? c.url : '',
+    // blob: URL 在重開後即失效，載入時清空避免顯示無效來源
+    url:               (typeof c.url === 'string' && !c.url.startsWith('blob:')) ? c.url : '',
     fileName:          typeof c.fileName === 'string' ? c.fileName : '',
     default_volume:    (typeof c.default_volume === 'number' && isFinite(c.default_volume))
                          ? Math.max(0, Math.min(1, c.default_volume)) : 0.7,
@@ -1306,6 +1349,9 @@ function renderCueList() {
     const d = document.createElement('div');
     d.className = 'cue-item' + (i === activeCueIdx ? ' active' : '');
     d.dataset.idx = i;
+    d.tabIndex = 0;
+    d.setAttribute('role', 'option');
+    d.setAttribute('aria-selected', i === activeCueIdx ? 'true' : 'false');
     const vol = Math.round(cue.default_volume * 100);
     const hasFile = cue.filePath || cue.url;
     d.innerHTML = `
@@ -1325,11 +1371,17 @@ function renderCueList() {
         </div>
       </div>
       <span class="cue-vol-b">${vol}%</span>
-      <button class="cue-del hide-in-perf" data-del="${i}" title="刪除">×</button>`;
+      <button class="cue-del hide-in-perf" data-del="${i}" title="刪除" aria-label="刪除 ${esc(cue.name)}">×</button>`;
+    d.setAttribute('aria-label', `Cue ${i + 1}：${cue.name}`);
     d.addEventListener('click', () => selectCue(i));
-    d.querySelector('.cue-del')?.addEventListener('click', e => {
+    d.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCue(i); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); el.children[i + 1]?.focus(); }
+      else if (e.key === 'ArrowUp')   { e.preventDefault(); el.children[i - 1]?.focus(); }
+    });
+    d.querySelector('.cue-del')?.addEventListener('click', async e => {
       e.stopPropagation();
-      if (confirm(`確定刪除「${cue.name}」？`)) {
+      if (await confirmModal(`確定刪除「${cue.name}」？`, { title: '刪除 Cue', danger: true })) {
         project.cues.splice(i, 1);
         if (activeCueIdx >= project.cues.length) activeCueIdx = project.cues.length - 1;
         saveProject(); renderCueList();
@@ -1498,6 +1550,34 @@ function toast(msg, type = '') {
   toastTimer = setTimeout(() => { t.className = ''; }, 2400);
 }
 
+// ── In-app 確認對話框（取代原生 confirm），回傳 Promise<boolean> ──
+function confirmModal(message, { title = '請確認', danger = false } = {}) {
+  return new Promise(resolve => {
+    const ov = document.getElementById('confirmModal');
+    document.getElementById('confirmMsg').textContent = message;
+    document.getElementById('confirmTitle').textContent = title;
+    const okBtn = document.getElementById('confirmOk');
+    okBtn.style.borderColor = danger ? 'var(--red)' : 'var(--accent)';
+    okBtn.style.color       = danger ? 'var(--red)' : 'var(--accent)';
+    ov.classList.add('open');
+    okBtn.focus();
+    const cancelBtn = document.getElementById('confirmCancel');
+    const done = (val) => {
+      ov.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onOk = () => done(true);
+    const onCancel = () => done(false);
+    const onKey = (e) => { if (e.key === 'Escape') done(false); else if (e.key === 'Enter') done(true); };
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
 // ══════════════════════════════════════════
 // PLAY ICON
 // ══════════════════════════════════════════
@@ -1512,13 +1592,26 @@ function updatePlayIco() {
 // ══════════════════════════════════════════
 document.getElementById('perfToggle').onclick = () => {
   perfMode = !perfMode;
-  document.getElementById('perfToggle').classList.toggle('active', perfMode);
+  const pt = document.getElementById('perfToggle');
+  pt.classList.toggle('active', perfMode);
+  pt.setAttribute('aria-pressed', perfMode ? 'true' : 'false');
   document.body.classList.toggle('perf-mode', perfMode);
   // Show/hide pName vs pNameShow
   document.getElementById('pName').style.display = perfMode ? 'none' : '';
   document.getElementById('pNameShow').style.display = perfMode ? '' : 'none';
   toast(perfMode ? '🔒 演出模式開啟 — 編輯功能已隱藏' : '🔓 演出模式關閉 — 編輯功能已恢復', perfMode ? 'warn' : 'ok');
 };
+
+// ── 屬性面板開合（窄寬度）+ 背景遮罩 ──
+function toggleRpanel(open) {
+  const rp = document.getElementById('rpanel');
+  const bd = document.getElementById('rpanel-backdrop');
+  const willOpen = open != null ? open : !rp.classList.contains('open');
+  rp.classList.toggle('open', willOpen);
+  bd.classList.toggle('open', willOpen);
+}
+document.getElementById('btnPanel').onclick = () => toggleRpanel();
+document.getElementById('rpanel-backdrop').onclick = () => toggleRpanel(false);
 
 // ══════════════════════════════════════════
 // EVENT LISTENERS
@@ -1673,10 +1766,14 @@ document.getElementById('mOk').onclick = () => {
 // Props edits
 document.getElementById('pName').onchange = e => {
   if (activeCueIdx < 0) return;
-  project.cues[activeCueIdx].name = e.target.value;
-  document.getElementById('npTitle').textContent = e.target.value;
-  document.getElementById('pNameShow').textContent = e.target.value;
-  renderCueList(); saveProject();
+  const name = e.target.value;
+  project.cues[activeCueIdx].name = name;
+  document.getElementById('npTitle').textContent = name;
+  document.getElementById('pNameShow').textContent = name;
+  // 局部更新該列名稱，避免整列重建（效能）
+  const nameEl = document.querySelector(`.cue-item:nth-child(${activeCueIdx + 1}) .cue-name`);
+  if (nameEl) nameEl.textContent = name;
+  saveProject();
 };
 document.getElementById('pFO').onchange = e => {
   if (activeCueIdx < 0) return;
@@ -1761,8 +1858,11 @@ document.getElementById('schedAdd').onclick = () => {
 // Tabs
 document.querySelectorAll('.rp-tab').forEach(tab => {
   tab.onclick = () => {
-    document.querySelectorAll('.rp-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
+    document.querySelectorAll('.rp-tab').forEach(t => {
+      const on = t === tab;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
     ['props','file','store'].forEach(id => {
       document.getElementById('tab-'+id).style.display = id === tab.dataset.tab ? '' : 'none';
     });
@@ -1802,8 +1902,8 @@ document.getElementById('btnImport').onclick = async () => {
   }
 };
 
-document.getElementById('btnReset').onclick = () => {
-  if (confirm('確定要清除所有資料嗎？此操作無法還原。')) {
+document.getElementById('btnReset').onclick = async () => {
+  if (await confirmModal('確定要清除所有資料嗎？此操作無法還原。', { title: '重置資料', danger: true })) {
     project = defaultProject();
     saveProject(); renderCueList(); activeCueIdx=-1;
     document.getElementById('npTitle').textContent = '— 請選擇一個 Cue —';
