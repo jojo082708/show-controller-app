@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>面試計時管理</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -20,6 +20,14 @@
     --danger: #dc2626;
     --mono: 'IBM Plex Mono', ui-monospace, monospace;
     --ui-font: 'Noto Sans TC', system-ui, sans-serif;
+    /* alpha blends — replaces color-mix() for Safari <16.2 */
+    --accent-a07: rgba(37,99,235,.07);
+    --accent-a08: rgba(37,99,235,.08);
+    --accent-a10: rgba(37,99,235,.10);
+    --accent-a16: rgba(37,99,235,.16);
+    --danger-a12: rgba(220,38,38,.12);
+    --danger-a14: rgba(220,38,38,.14);
+    --danger-a30: rgba(220,38,38,.30);
   }
   body[data-theme="dark"] {
     --bg: #0f0f11;
@@ -44,10 +52,12 @@
 </style>
 </head>
 <body data-theme="light">
+<!-- Apply saved theme before React hydrates to avoid light-flash -->
+<script>(function(){try{var s=JSON.parse(localStorage.getItem('itm_v1')||'null');if(s&&s.dark)document.body.dataset.theme='dark';}catch(e){}})()</script>
 <div id="root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <!-- ── data.jsx ── -->
@@ -187,11 +197,7 @@ const IC = {
   vol:   (p) => <Icon {...p} d={["M4 9v6h4l5 4V5L8 9z","M16.5 8.5a5 5 0 0 1 0 7","M19 6a8 8 0 0 1 0 12"]} />,
   mute:  (p) => <Icon {...p} d={["M4 9v6h4l5 4V5L8 9z","M22 9l-6 6","M16 9l6 6"]} />,
   back:  (p) => <Icon {...p} d="M15 5l-7 7 7 7" />,
-  flag:  (p) => <Icon {...p} d={["M5 21V4","M5 4h12l-2 4 2 4H5"]} />,
-  clock: (p) => <Icon {...p} d={["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z","M12 7.5V12l3 2"]} />,
   trash: (p) => <Icon {...p} d={["M4 7h16","M9 7V4h6v3","M6 7l1 13h10l1-13"]} />,
-  sun:   (p) => <Icon {...p} d={["M12 3v2","M12 19v2","M3 12H1","M23 12h-2","M5.6 5.6 4.2 4.2","M19.8 19.8l-1.4-1.4","M4.2 19.8l1.4-1.4","M18.4 5.6l1.4-1.4","M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"]} />,
-  moon:  (p) => <Icon {...p} d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z" />,
 };
 
 function Btn({ children, onClick, kind = 'ghost', size = 'md', icon, full, disabled, style }) {
@@ -223,7 +229,7 @@ function Btn({ children, onClick, kind = 'ghost', size = 'md', icon, full, disab
   );
 }
 
-function RoundBtn({ icon, onClick, kind = 'soft', size = 56, label, active }) {
+function RoundBtn({ icon, onClick, kind = 'soft', size = 56, label }) {
   const [press, setPress] = useState(false);
   const palette = {
     primary: { bg: 'var(--accent)', fg: '#fff' },
@@ -419,7 +425,7 @@ function SetupScreen(props) {
         <SectionLabel right={<span style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 }}>{people.length} 位</span>}>面試者名單</SectionLabel>
         <Card style={{ marginBottom: 12 }}>
           {people.map((p, i) => (
-            <div key={p.id + i} onClick={() => openEditPerson(i)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+            <div key={p.id} onClick={() => openEditPerson(i)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
               borderTop: i ? '1px solid var(--hair)' : 'none', cursor: 'pointer' }}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--faint)', width: 30 }}>{p.id}</span>
               <span style={{ flex: 1, fontSize: 16, fontWeight: 500, color: 'var(--ink)' }}>{p.name}</span>
@@ -529,9 +535,9 @@ function StatsScreen({ people, doneSet, totalSec, currentIdx, started }) {
           const isDone = doneSet.has(i);
           const isCurrent = started && i === currentIdx;
           return (
-            <div key={p.id + i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: i ? '1px solid var(--hair)' : 'none' }}>
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: i ? '1px solid var(--hair)' : 'none' }}>
               <span style={{ width: 24, height: 24, borderRadius: 999, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: isDone ? 'var(--accent)' : isCurrent ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--soft)',
+                background: isDone ? 'var(--accent)' : isCurrent ? 'var(--accent-a16)' : 'var(--soft)',
                 color: isDone ? '#fff' : isCurrent ? 'var(--accent)' : 'var(--faint)', border: isCurrent ? '1.5px solid var(--accent)' : 'none' }}>
                 {isDone ? <IC.check size={14} /> : <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700 }}>{p.id}</span>}
               </span>
@@ -596,7 +602,7 @@ function SettingsScreen({ settings, setSettings, engine, dark, onToggleDark, lay
               <button key={l.id} onClick={() => onSetLayout(l.id)}
                 style={{ padding: '7px 12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
                   border: layout === l.id ? '1.5px solid var(--accent)' : '1px solid var(--hair)',
-                  background: layout === l.id ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'var(--card)',
+                  background: layout === l.id ? 'var(--accent-a10)' : 'var(--card)',
                   color: layout === l.id ? 'var(--accent)' : 'var(--ink)', WebkitTapHighlightColor: 'transparent' }}>{l.label}</button>
             ))}
           </div>
@@ -620,7 +626,7 @@ function SettingsScreen({ settings, setSettings, engine, dark, onToggleDark, lay
               return (
                 <button key={s.id} onClick={() => { upd({ sound: s.id }); engine.test(s.id); }}
                   style={{ flex: 1, padding: '11px 6px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 600,
-                    border: on ? '1.5px solid var(--accent)' : '1px solid var(--hair)', background: on ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--card)',
+                    border: on ? '1.5px solid var(--accent)' : '1px solid var(--hair)', background: on ? 'var(--accent-a08)' : 'var(--card)',
                     color: on ? 'var(--accent)' : 'var(--ink)', WebkitTapHighlightColor: 'transparent' }}>{s.name}</button>
               );
             })}
@@ -665,11 +671,11 @@ function SettingsScreen({ settings, setSettings, engine, dark, onToggleDark, lay
 
       <SectionLabel>資料</SectionLabel>
       <Card>
-        <Row label="匯出今日紀錄" sub="PDF / Excel" border={false}>
-          <IC.chevR size={16} style={{ color: 'var(--faint)' }} />
+        <Row label="匯出今日紀錄" sub="PDF / Excel（即將推出）" border={false}>
+          <span style={{ fontSize: 12, color: 'var(--faint)', fontWeight: 600, whiteSpace: 'nowrap' }}>即將推出</span>
         </Row>
-        <Row label="雲端同步" sub="多裝置同步計時資訊">
-          <ToggleSwitch on={settings.cloud} onChange={v => upd({ cloud: v })} />
+        <Row label="雲端同步" sub="多裝置同步計時資訊（即將推出）">
+          <span style={{ fontSize: 12, color: 'var(--faint)', fontWeight: 600, whiteSpace: 'nowrap' }}>即將推出</span>
         </Row>
       </Card>
     </div>
@@ -739,13 +745,13 @@ function VariantMinimal({ stage, remaining, big }) {
   );
 }
 
-function TimerVariant({ layout, ...p }) {
+const TimerVariant = React.memo(function TimerVariant({ layout, ...p }) {
   if (layout === 'ring') return <VariantRing {...p} />;
   if (layout === 'minimal') return <VariantMinimal {...p} />;
   return <VariantNumber {...p} />;
-}
+});
 
-function StageStrip({ stages, stageIdx, onJump }) {
+const StageStrip = React.memo(function StageStrip({ stages, stageIdx, onJump }) {
   return (
     <div style={{ display: 'flex', gap: 6, width: '100%' }}>
       {stages.map((s, i) => {
@@ -759,11 +765,11 @@ function StageStrip({ stages, stageIdx, onJump }) {
       })}
     </div>
   );
-}
+});
 
 function RunningScreen(ctl) {
   const { person, personIdx, peopleCount, stage, stageIdx, stages, remaining, running, layout,
-    toggle, resetStage, nextStage, prevStage, nextPerson, prevPerson, jumpPerson, enterFullscreen, banner, dismissBanner, onBack } = ctl;
+    toggle, resetStage, nextStage, nextPerson, prevPerson, jumpPerson, enterFullscreen, banner, dismissBanner, onBack } = ctl;
   const [jump, setJump] = useStateTV(false);
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -794,7 +800,7 @@ function RunningScreen(ctl) {
 
       {banner && (
         <div style={{ margin: '0 16px 10px', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14,
-          background: 'color-mix(in srgb, var(--danger) 12%, var(--card))', border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)' }}>
+          background: 'var(--danger-a12)', border: '1px solid var(--danger-a30)' }}>
           <IC.bell size={19} style={{ color: 'var(--danger)' }} />
           <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, color: 'var(--ink)' }}>{banner.text}</span>
           <button onClick={dismissBanner} style={{ background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 999, padding: '6px 13px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>關閉提醒</button>
@@ -816,9 +822,9 @@ function RunningScreen(ctl) {
       <Sheet open={jump} onClose={() => setJump(false)} title="跳至指定面試者">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {ctl.people.map((p, i) => (
-            <button key={p.id + i} onClick={() => { jumpPerson(i); setJump(false); }}
+            <button key={p.id} onClick={() => { jumpPerson(i); setJump(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                border: i === personIdx ? '1.5px solid var(--accent)' : '1px solid var(--hair)', background: i === personIdx ? 'color-mix(in srgb, var(--accent) 7%, transparent)' : 'var(--card)' }}>
+                border: i === personIdx ? '1.5px solid var(--accent)' : '1px solid var(--hair)', background: i === personIdx ? 'var(--accent-a07)' : 'var(--card)' }}>
               <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--faint)', width: 30 }}>{p.id}</span>
               <span style={{ flex: 1, fontSize: 16, fontWeight: 500, color: 'var(--ink)' }}>{p.name}</span>
               {ctl.doneSet.has(i) && <IC.check size={18} style={{ color: 'var(--accent)' }} />}
@@ -875,7 +881,7 @@ function TimeUpOverlay({ person, onStop, onRestart, onNext, onSettings, alarmOn 
       <div style={{ width: '100%', maxWidth: 360, background: 'var(--card)', borderRadius: 26, padding: '30px 24px 24px', textAlign: 'center',
         boxShadow: '0 30px 70px -20px rgba(0,0,0,.5)', animation: 'popIn .3s cubic-bezier(.22,1.2,.36,1)' }}>
         <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'color-mix(in srgb, var(--danger) 14%, transparent)', color: 'var(--danger)', animation: alarmOn ? 'ring 1s ease-in-out infinite' : 'none' }}>
+          background: 'var(--danger-a14)', color: 'var(--danger)', animation: alarmOn ? 'ring 1s ease-in-out infinite' : 'none' }}>
           <IC.bell size={36} />
         </div>
         <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--ink)' }}>時間到</div>
@@ -895,44 +901,82 @@ function TimeUpOverlay({ person, onStop, onRestart, onNext, onSettings, alarmOn 
   );
 }
 
-Object.assign(window, { RunningScreen, FullscreenView, TimeUpOverlay, TimerVariant, setDangerAt });
+Object.assign(window, { RunningScreen, FullscreenView, TimeUpOverlay, TimerVariant, StageStrip, setDangerAt });
 </script>
 
 <!-- ── app.jsx ── -->
 <script type="text/babel">
 const { useState: useStateApp, useEffect: useEffectApp, useRef: useRefApp, useCallback: useCallbackApp } = React;
 
+class ErrorBoundary extends React.Component {
+  state = { err: null };
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { console.error('[ITM]', err, info); }
+  render() {
+    if (this.state.err) return (
+      <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        background: '#f4f4f5', padding: 32, fontFamily: 'system-ui, sans-serif', gap: 16, textAlign: 'center' }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#18181b' }}>發生錯誤</div>
+        <div style={{ fontSize: 14, color: '#71717a', maxWidth: 320 }}>{String(this.state.err.message || this.state.err)}</div>
+        <button onClick={() => { try { localStorage.removeItem('itm_v1'); } catch(e){} location.reload(); }}
+          style={{ padding: '12px 24px', borderRadius: 14, border: 'none', background: '#2563eb', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>
+          清除資料並重新啟動
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 const engine = new SoundEngine();
 
+const LS_VERSION = 1;
+const LS_KEY = 'itm_v1';
+function loadSaved() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    return raw || null;
+  } catch { return null; }
+}
+
 function App() {
-  const [stages, setStages] = useStateApp(DEFAULT_STAGES.map(s => ({ ...s })));
-  const [people, setPeople] = useStateApp(DEFAULT_PEOPLE.map(p => ({ ...p })));
-  const [settings, setSettings] = useStateApp({
+  const saved = React.useMemo(loadSaved, []);
+
+  const [stages, setStages] = useStateApp(() => saved?.stages || DEFAULT_STAGES.map(s => ({ ...s })));
+  const [people, setPeople] = useStateApp(() => saved?.people || DEFAULT_PEOPLE.map(p => ({ ...p })));
+  const [settings, setSettings] = useStateApp(() => saved?.settings || {
     sound: 'ring', volume: 0.7, muted: false,
-    r5: true, r3: true, r1: true, r0: true, flash: true, cloud: false,
+    r5: true, r3: true, r1: true, r0: true, flash: true,
   });
 
-  const [view, setView] = useStateApp('home');
+  const [view, setView] = useStateApp(() => saved?.view || 'home');
   const [tab, setTab] = useStateApp('setup');
 
-  const [personIdx, setPersonIdx] = useStateApp(0);
-  const [stageIdx, setStageIdx] = useStateApp(0);
-  const [doneSet, setDoneSet] = useStateApp(() => new Set());
+  const [personIdx, setPersonIdx] = useStateApp(() => saved?.personIdx ?? 0);
+  const [stageIdx, setStageIdx] = useStateApp(() => saved?.stageIdx ?? 0);
+  const [doneSet, setDoneSet] = useStateApp(() => new Set(saved?.doneSet || []));
 
   const [running, setRunning] = useStateApp(false);
-  const [remaining, setRemaining] = useStateApp(stages[0].sec);
+
+  // Compute initial remaining once; use useMemo to avoid re-running every render
+  const initRem = React.useMemo(() => {
+    if (saved?.remaining > 0) return saved.remaining;
+    const si = saved?.stageIdx ?? 0;
+    const ss = saved?.stages || DEFAULT_STAGES;
+    return (ss[si] || ss[0]).sec;
+  }, []);
+  const [remaining, setRemaining] = useStateApp(initRem);
   const deadlineRef = useRefApp(null);
-  const remainRef = useRefApp(stages[0].sec);
+  const remainRef = useRefApp(initRem);
   const firedRef = useRefApp(new Set());
   const [banner, setBanner] = useStateApp(null);
   const [timeUp, setTimeUp] = useStateApp(false);
   const [alarmOn, setAlarmOn] = useStateApp(false);
   const [flashOn, setFlashOn] = useStateApp(false);
 
-  // appearance state
-  const [dark, setDark] = useStateApp(false);
-  const [layout, setLayout] = useStateApp('number');
-  const [warnSec, setWarnSec] = useStateApp(60);
+  const [dark, setDark] = useStateApp(() => saved?.dark ?? false);
+  const [layout, setLayout] = useStateApp(() => saved?.layout || 'number');
+  const [warnSec, setWarnSec] = useStateApp(() => saved?.warnSec ?? 60);
 
   const stage = stages[Math.min(stageIdx, stages.length - 1)] || stages[0];
   const person = people[Math.min(personIdx, people.length - 1)] || people[0];
@@ -951,14 +995,20 @@ function App() {
     const plan = [];
     if (settings.r5 && stage.sec > 300) plan.push({ key: 'r5', at: 300, text: '剩餘 5 分鐘' });
     if (settings.r3 && stage.sec > 180) plan.push({ key: 'r3', at: 180, text: '剩餘 3 分鐘' });
-    if (settings.r1 && stage.sec > 60) plan.push({ key: 'r1', at: 60, text: '剩餘 1 分鐘' });
+    if (settings.r1 && stage.sec > 60)  plan.push({ key: 'r1', at: 60,  text: '剩餘 1 分鐘' });
     return plan;
   }, [settings.r5, settings.r3, settings.r1, stage.sec]);
 
+  // Refs that always point to the latest function — eliminates stale closures in the tick interval
+  const handleStageEndRef = useRefApp(null);
+  const triggerFlashRef = useRefApp(null);
+
   const triggerFlash = () => {
     if (!settings.flash) return;
-    setFlashOn(true); setTimeout(() => setFlashOn(false), 1400);
+    setFlashOn(true);
+    setTimeout(() => setFlashOn(false), 1400);
   };
+  triggerFlashRef.current = triggerFlash;
 
   useEffectApp(() => {
     if (!running) return;
@@ -973,13 +1023,13 @@ function App() {
           firedRef.current.add(p.key);
           engine.reminder(settings.sound, p.key);
           setBanner({ text: p.text });
-          triggerFlash();
+          triggerFlashRef.current?.();
         }
       });
 
       if (rem <= 0) {
         setRunning(false);
-        handleStageEnd();
+        handleStageEndRef.current?.();
       }
     };
     tick();
@@ -1023,7 +1073,7 @@ function App() {
 
   const handleStageEnd = () => {
     engine.reminder(settings.sound, 'timeup');
-    triggerFlash();
+    triggerFlashRef.current?.();
     if (stageIdx < stages.length - 1) {
       const next = stageIdx + 1;
       setBanner({ text: stage.name + ' 結束 · 進入「' + stages[next].name + '」' });
@@ -1033,6 +1083,8 @@ function App() {
       setTimeUp(true);
     }
   };
+  // Update ref every render so tick always calls the latest version
+  handleStageEndRef.current = handleStageEnd;
 
   const nextStage = () => {
     if (stageIdx < stages.length - 1) loadStage(stageIdx + 1, running);
@@ -1061,6 +1113,7 @@ function App() {
   const startInterview = () => { setView('run'); setPersonIdx(0); loadStage(0, false); };
   const goSettings = () => { stopAlarm(); setTimeUp(false); setRunning(false); setView('home'); };
 
+  // Keyboard shortcuts — `remaining` removed from deps; use remainRef.current inside instead
   useEffectApp(() => {
     if (view === 'home') return;
     const onKey = (e) => {
@@ -1075,12 +1128,31 @@ function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view, running, timeUp, alarmOn, settings.muted, personIdx, stageIdx, remaining]);
+  }, [view, running, timeUp, alarmOn, settings.muted, personIdx, stageIdx]);
+
+  // Persist session to localStorage (debounced 500ms)
+  useEffectApp(() => {
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify({
+          version: LS_VERSION,
+          stages, people, settings, personIdx, stageIdx,
+          remaining: remainRef.current,
+          doneSet: Array.from(doneSet),
+          dark, layout, warnSec,
+          view: view === 'full' ? 'run' : view,
+        }));
+      } catch (e) {
+        console.warn('[ITM] localStorage save failed:', e);
+      }
+    }, 500);
+    return () => clearTimeout(id);
+  }, [stages, people, settings, personIdx, stageIdx, doneSet, dark, layout, warnSec, view]);
 
   const ctl = {
     person, personIdx, peopleCount: people.length, people, doneSet,
     stage, stageIdx, stages, remaining, running, layout,
-    toggle, resetStage, nextStage, jumpStage, prevStage: () => loadStage(Math.max(0, stageIdx - 1)),
+    toggle, resetStage, nextStage, jumpStage,
     nextPerson, prevPerson, jumpPerson,
     enterFullscreen: () => setView('full'), exitFullscreen: () => setView('run'),
     banner, dismissBanner: () => setBanner(null), onBack: goSettings,
@@ -1088,7 +1160,6 @@ function App() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', fontFamily: 'var(--ui-font)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {/* flash overlay */}
       {flashOn && <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'var(--danger)', animation: 'flash 1.4s ease', pointerEvents: 'none' }} />}
 
       {view === 'home' && (
@@ -1118,7 +1189,9 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <ErrorBoundary><App /></ErrorBoundary>
+);
 </script>
 </body>
 </html>
