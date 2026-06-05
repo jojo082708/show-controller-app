@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>面試計時管理</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f4f4f5;
+    --card: #ffffff;
+    --soft: #f1f1f3;
+    --ink: #18181b;
+    --muted: #71717a;
+    --faint: #a1a1aa;
+    --hair: rgba(0,0,0,.08);
+    --accent: #2563eb;
+    --danger: #dc2626;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --ui-font: 'Noto Sans TC', system-ui, sans-serif;
+  }
+  body[data-theme="dark"] {
+    --bg: #0f0f11;
+    --card: #1a1a1d;
+    --soft: #26262a;
+    --ink: #f4f4f5;
+    --muted: #a1a1aa;
+    --faint: #71717a;
+    --hair: rgba(255,255,255,.1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); overscroll-behavior: none; }
+  #root { height: 100%; }
+  input[type="range"] { -webkit-appearance: none; height: 4px; border-radius: 999px; background: var(--hair); }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @keyframes popIn { from { transform: scale(.92); } to { transform: scale(1); } }
+  @keyframes flash { 0%,100% { opacity: 0; } 20%,60% { opacity: .32; } 40%,80% { opacity: 0; } }
+  @keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(-12deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 80% { transform: rotate(4deg); } }
+</style>
+</head>
+<body data-theme="light">
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- data -->
+<script type="text/babel">
+const DEFAULT_STAGES = [
+  { id: 's1', name: '自我介紹', sec: 180 },
+  { id: 's2', name: '專業問答', sec: 300 },
+  { id: 's3', name: '委員提問', sec: 300 },
+  { id: 's4', name: '結尾',     sec: 120 },
+];
+const DEFAULT_PEOPLE = [
+  { id: '001', name: '王小明', note: '甲組' },
+  { id: '002', name: '李小華', note: '' },
+  { id: '003', name: '陳大文', note: '備取調入' },
+  { id: '004', name: '林雅婷', note: '乙組' },
+  { id: '005', name: '張志豪', note: '' },
+  { id: '006', name: '黃淑芬', note: '需手語翻譯' },
+];
+const TEMPLATES = [
+  { id: 't_teacher', name: '教師甄試', stages: [
+    { name: '自我介紹', sec: 180 }, { name: '試教演示', sec: 480 },
+    { name: '委員提問', sec: 360 }, { name: '結尾', sec: 60 } ] },
+  { id: 't_grad', name: '研究所面試', stages: [
+    { name: '自我介紹', sec: 180 }, { name: '專業問答', sec: 300 },
+    { name: '委員提問', sec: 300 }, { name: '結尾', sec: 120 } ] },
+  { id: 't_club', name: '社團幹部面試', stages: [
+    { name: '自我介紹', sec: 120 }, { name: '理念說明', sec: 180 },
+    { name: '綜合問答', sec: 240 }, { name: '結尾', sec: 60 } ] },
+  { id: 't_corp', name: '企業面試', stages: [
+    { name: '自我介紹', sec: 180 }, { name: '經歷問答', sec: 360 },
+    { name: '情境題', sec: 300 }, { name: '反問時間', sec: 180 }, { name: '結尾', sec: 60 } ] },
+];
+const SOUNDS = [
+  { id: 'ring', name: '鈴聲' },
+  { id: 'buzz', name: '蜂鳴聲' },
+  { id: 'bell', name: '敲鐘聲' },
+];
+function fmt(totalSec) {
+  const s = Math.max(0, Math.round(totalSec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
+}
+function uid() { return Math.random().toString(36).slice(2, 9); }
+class SoundEngine {
+  constructor() { this.ctx = null; this.master = null; this.volume = 0.7; this.muted = false; this._loop = null; }
+  _ensure() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.volume;
+      this.master.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  }
+  setVolume(v) { this.volume = v; if (this.master) this.master.gain.value = this.muted ? 0 : v; }
+  setMuted(m) { this.muted = m; if (this.master) this.master.gain.value = m ? 0 : this.volume; }
+  _tone(type, freq, t0, dur, peak = 0.5, decay = false) {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(peak, t0 + 0.008);
+    if (decay) g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    else { g.gain.setValueAtTime(peak, t0 + dur - 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
+    osc.connect(g); g.connect(this.master);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  }
+  _playSound(kind, strength = 1) {
+    const ctx = this._ensure(); const t = ctx.currentTime;
+    if (kind === 'buzz') {
+      const reps = strength >= 2 ? 3 : 2;
+      for (let i = 0; i < reps; i++) this._tone('square', 440, t + i * 0.16, 0.1, 0.32);
+    } else if (kind === 'bell') {
+      const f = 660;
+      this._tone('sine', f, t, 1.4, 0.5, true);
+      this._tone('sine', f * 2.76, t, 1.0, 0.18, true);
+      this._tone('sine', f * 5.4, t, 0.6, 0.08, true);
+    } else {
+      const notes = [523.25, 659.25, 783.99];
+      notes.forEach((nf, i) => this._tone('triangle', nf, t + i * 0.1, 0.42, 0.34, true));
+    }
+  }
+  reminder(soundId, level) { this._playSound(soundId, level === 'timeup' ? 2 : 1); }
+  test(soundId) { this._playSound(soundId, 1); }
+  startAlarm(soundId) {
+    this.stopAlarm();
+    const fire = () => this._playSound(soundId, 2);
+    fire();
+    this._loop = setInterval(fire, soundId === 'bell' ? 1600 : 1100);
+  }
+  stopAlarm() { if (this._loop) { clearInterval(this._loop); this._loop = null; } }
+}
+Object.assign(window, { DEFAULT_STAGES, DEFAULT_PEOPLE, TEMPLATES, SOUNDS, fmt, uid, SoundEngine });
+</script>
+
+<!-- ui -->
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+const Icon = ({ d, size = 22, sw = 1.8, fill = 'none', style }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={fill === 'none' ? 'currentColor' : 'none'}
+       strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={style}>
+    {Array.isArray(d) ? d.map((p, i) => <path key={i} d={p} />) : <path d={d} />}
+  </svg>
+);
+const IC = {
+  play:  (p) => <svg width={p?.size||22} height={p?.size||22} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>,
+  pause: (p) => <svg width={p?.size||22} height={p?.size||22} viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5.5" width="3.6" height="13" rx="1"/><rect x="13.9" y="5.5" width="3.6" height="13" rx="1"/></svg>,
+  reset: (p) => <Icon {...p} d={["M3.5 12a8.5 8.5 0 1 0 2.6-6.1","M3.2 4.4v3.9h3.9"]} />,
+  next:  (p) => <Icon {...p} d={["M6 5l8 7-8 7","M18 5v14"]} />,
+  prev:  (p) => <Icon {...p} d={["M18 5l-8 7 8 7","M6 5v14"]} />,
+  expand:(p) => <Icon {...p} d={["M4 9V4h5","M20 9V4h-5","M4 15v5h5","M20 15v5h-5"]} />,
+  shrink:(p) => <Icon {...p} d={["M9 4v5H4","M15 4v5h5","M9 20v-5H4","M15 20v-5h5"]} />,
+  gear:  (p) => <Icon {...p} d={["M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z","M19.4 13a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 6.6 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 13.4H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 6.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9z"]} />,
+  chart: (p) => <Icon {...p} d={["M4 20V10","M10 20V4","M16 20v-7","M22 20H2"]} />,
+  list:  (p) => <Icon {...p} d={["M8 6h13","M8 12h13","M8 18h13","M3.5 6h.01","M3.5 12h.01","M3.5 18h.01"]} />,
+  plus:  (p) => <Icon {...p} d={["M12 5v14","M5 12h14"]} />,
+  x:     (p) => <Icon {...p} d={["M6 6l12 12","M18 6L6 18"]} />,
+  bell:  (p) => <Icon {...p} d={["M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9","M13.7 21a2 2 0 0 1-3.4 0"]} />,
+  check: (p) => <Icon {...p} d="M5 12.5l4.5 4.5L19 6.5" />,
+  chevR: (p) => <Icon {...p} d="M9 5l7 7-7 7" />,
+  chevD: (p) => <Icon {...p} d="M5 9l7 7 7-7" />,
+  vol:   (p) => <Icon {...p} d={["M4 9v6h4l5 4V5L8 9z","M16.5 8.5a5 5 0 0 1 0 7","M19 6a8 8 0 0 1 0 12"]} />,
+  mute:  (p) => <Icon {...p} d={["M4 9v6h4l5 4V5L8 9z","M22 9l-6 6","M16 9l6 6"]} />,
+  back:  (p) => <Icon {...p} d="M15 5l-7 7 7 7" />,
+  trash: (p) => <Icon {...p} d={["M4 7h16","M9 7V4h6v3","M6 7l1 13h10l1-13"]} />,
+};
+function Btn({ children, onClick, kind = 'ghost', size = 'md', icon, full, disabled, style }) {
+  const [press, setPress] = useState(false);
+  const pads = { sm: '8px 12px', md: '11px 16px', lg: '15px 20px' };
+  const fss  = { sm: 13, md: 15, lg: 17 };
+  const palette = {
+    primary: { bg: 'var(--accent)', fg: '#fff', bd: 'transparent' },
+    danger:  { bg: 'var(--danger)', fg: '#fff', bd: 'transparent' },
+    solid:   { bg: 'var(--ink)', fg: 'var(--card)', bd: 'transparent' },
+    ghost:   { bg: 'var(--card)', fg: 'var(--ink)', bd: 'var(--hair)' },
+    soft:    { bg: 'var(--soft)', fg: 'var(--ink)', bd: 'transparent' },
+  }[kind];
+  return (
+    <button onClick={onClick} disabled={disabled}
+      onPointerDown={() => setPress(true)} onPointerUp={() => setPress(false)} onPointerLeave={() => setPress(false)}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        width: full ? '100%' : undefined, padding: pads[size], fontSize: fss[size],
+        fontFamily: 'inherit', fontWeight: 600, letterSpacing: '.01em',
+        color: palette.fg, background: palette.bg, border: `1px solid ${palette.bd}`,
+        borderRadius: 14, cursor: disabled ? 'default' : 'pointer', whiteSpace: 'nowrap',
+        opacity: disabled ? 0.4 : 1, transform: press ? 'scale(0.97)' : 'scale(1)',
+        transition: 'transform .08s, background .15s, opacity .15s', boxShadow: 'none',
+        WebkitTapHighlightColor: 'transparent', ...style,
+      }}>
+      {icon}{children}
+    </button>
+  );
+}
+function RoundBtn({ icon, onClick, kind = 'soft', size = 56, label }) {
+  const [press, setPress] = useState(false);
+  const palette = {
+    primary: { bg: 'var(--accent)', fg: '#fff' },
+    danger:  { bg: 'var(--danger)', fg: '#fff' },
+    soft:    { bg: 'var(--soft)', fg: 'var(--ink)' },
+    ghost:   { bg: 'var(--card)', fg: 'var(--ink)' },
+  }[kind];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+      <button onClick={onClick} aria-label={label}
+        onPointerDown={() => setPress(true)} onPointerUp={() => setPress(false)} onPointerLeave={() => setPress(false)}
+        style={{
+          width: size, height: size, borderRadius: '50%', border: kind === 'ghost' ? '1px solid var(--hair)' : 'none',
+          background: palette.bg, color: palette.fg, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transform: press ? 'scale(0.93)' : 'scale(1)', transition: 'transform .08s, background .15s',
+          WebkitTapHighlightColor: 'transparent', boxShadow: kind === 'primary' ? '0 6px 18px -6px var(--accent)' : 'none',
+        }}>
+        {icon}
+      </button>
+      {label && <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>{label}</span>}
+    </div>
+  );
+}
+function Stepper({ value, onChange, step = 1, min = 0, max = 9999, fmtFn }) {
+  const hold = useRef(null);
+  const bump = (dir) => onChange(Math.min(max, Math.max(min, value + dir * step)));
+  const start = (dir) => { bump(dir); hold.current = setTimeout(function rep() { bump(dir); hold.current = setTimeout(rep, 110); }, 380); };
+  const stop = () => { if (hold.current) clearTimeout(hold.current); };
+  const sBtn = (label, dir) => (
+    <button onPointerDown={() => start(dir)} onPointerUp={stop} onPointerLeave={stop}
+      style={{ width: 34, height: 34, borderRadius: 10, border: '1px solid var(--hair)', background: 'var(--card)',
+        color: 'var(--ink)', fontSize: 19, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', WebkitTapHighlightColor: 'transparent' }}>{label}</button>
+  );
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {sBtn('–', -1)}
+      <span style={{ minWidth: 56, textAlign: 'center', fontFamily: 'var(--mono)', fontSize: 16, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--ink)' }}>
+        {fmtFn ? fmtFn(value) : value}
+      </span>
+      {sBtn('+', 1)}
+    </div>
+  );
+}
+function TabBar({ tab, onTab }) {
+  const tabs = [
+    { id: 'setup', label: '排程', icon: IC.list },
+    { id: 'stats', label: '統計', icon: IC.chart },
+    { id: 'settings', label: '設定', icon: IC.gear },
+  ];
+  return (
+    <div style={{ display: 'flex', borderTop: '1px solid var(--hair)', background: 'var(--card)' }}>
+      {tabs.map(t => {
+        const on = tab === t.id;
+        return (
+          <button key={t.id} onClick={() => onTab(t.id)}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
+              color: on ? 'var(--accent)' : 'var(--faint)', WebkitTapHighlightColor: 'transparent' }}>
+            <t.icon size={23} />
+            <span style={{ fontSize: 11, fontWeight: on ? 600 : 500, whiteSpace: 'nowrap' }}>{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+function SectionLabel({ children, right }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '4px 4px 10px' }}>
+      <span style={{ fontSize: 12.5, fontWeight: 600, letterSpacing: '.08em', color: 'var(--faint)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</span>
+      <div style={{ whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12 }}>{right}</div>
+    </div>
+  );
+}
+function Card({ children, style, onClick }) {
+  return (
+    <div onClick={onClick} style={{ background: 'var(--card)', border: '1px solid var(--hair)', borderRadius: 18, overflow: 'hidden', ...style }}>
+      {children}
+    </div>
+  );
+}
+function Sheet({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.32)', animation: 'fadeIn .18s ease' }} />
+      <div onClick={e => e.stopPropagation()} style={{
+        position: 'relative', width: '100%', maxWidth: 640, margin: '0 auto', maxHeight: '82%', overflow: 'auto',
+        background: 'var(--bg)', borderRadius: '24px 24px 0 0', padding: '10px 18px 28px',
+        animation: 'sheetUp .26s cubic-bezier(.22,1,.36,1)', boxShadow: '0 -10px 40px rgba(0,0,0,.18)',
+      }}>
+        <div style={{ width: 38, height: 5, borderRadius: 3, background: 'var(--hair)', margin: '6px auto 14px' }} />
+        {title && <div style={{ fontSize: 19, fontWeight: 700, color: 'var(--ink)', margin: '0 4px 16px' }}>{title}</div>}
+        {children}
+      </div>
+    </div>
+  );
+}
+Object.assign(window, { IC, Icon, Btn, RoundBtn, Stepper, TabBar, SectionLabel, Card, Sheet });
+</script>
+
+<!-- setup -->
+<script type="text/babel">
+const { useState: useStateSetup } = React;
+function TInput({ value, onChange, placeholder, mono, style, width }) {
+  return (
+    <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{ width: width || '100%', boxSizing: 'border-box', padding: '11px 13px', fontSize: 16,
+        fontFamily: mono ? 'var(--mono)' : 'inherit', fontWeight: 500, color: 'var(--ink)',
+        background: 'var(--soft)', border: '1px solid transparent', borderRadius: 12, outline: 'none', ...style }}
+      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+      onBlur={e => e.target.style.borderColor = 'transparent'} />
+  );
+}
+function SetupScreen(props) {
+  const { stages, setStages, people, setPeople, templates, onStart, totalSec } = props;
+  const [personSheet, setPersonSheet] = useStateSetup(null);
+  const [draft, setDraft] = useStateSetup({ id: '', name: '', note: '' });
+  const [tplOpen, setTplOpen] = useStateSetup(false);
+  const updateStage = (i, patch) => setStages(stages.map((s, j) => j === i ? { ...s, ...patch } : s));
+  const delStage = (i) => setStages(stages.filter((_, j) => j !== i));
+  const addStage = () => setStages([...stages, { id: uid(), name: '新流程', sec: 180 }]);
+  const openNewPerson = () => { const n = String(people.length + 1).padStart(3,'0'); setDraft({ id: n, name: '', note: '' }); setPersonSheet({ new: true }); };
+  const openEditPerson = (i) => { setDraft({ ...people[i] }); setPersonSheet({ idx: i }); };
+  const savePerson = () => {
+    if (!draft.name.trim()) return;
+    if (personSheet.new) setPeople([...people, { ...draft, id: draft.id || uid() }]);
+    else setPeople(people.map((p, j) => j === personSheet.idx ? draft : p));
+    setPersonSheet(null);
+  };
+  const delPerson = () => { setPeople(people.filter((_, j) => j !== personSheet.idx)); setPersonSheet(null); };
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '8px 16px 20px' }}>
+        <div style={{ padding: '6px 4px 18px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', letterSpacing: '.04em' }}>面試計時 · INTERVIEW TIMER</div>
+          <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.01em', marginTop: 4 }}>準備面試</div>
+          <div style={{ fontSize: 14.5, color: 'var(--muted)', marginTop: 6 }}>共 {people.length} 位面試者 · 單輪 {fmt(totalSec)} · 預估 {fmt(totalSec * people.length)}</div>
+        </div>
+        <SectionLabel right={<button onClick={() => setTplOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>全部模板</button>}>流程模板</SectionLabel>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -16px 22px', padding: '0 16px 4px' }}>
+          {templates.map(t => (
+            <button key={t.id} onClick={() => setStages(t.stages.map(s => ({ ...s, id: uid() })))}
+              style={{ flexShrink: 0, padding: '12px 15px', borderRadius: 14, border: '1px solid var(--hair)', background: 'var(--card)', cursor: 'pointer', textAlign: 'left', WebkitTapHighlightColor: 'transparent' }}>
+              <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap' }}>{t.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--faint)', marginTop: 3, fontFamily: 'var(--mono)' }}>{t.stages.length} 段 · {fmt(t.stages.reduce((a,s) => a+s.sec, 0))}</div>
+            </button>
+          ))}
+        </div>
+        <SectionLabel right={<span style={{ fontSize: 12.5, fontFamily: 'var(--mono)', color: 'var(--muted)', fontWeight: 600 }}>合計 {fmt(totalSec)}</span>}>面試流程</SectionLabel>
+        <Card style={{ marginBottom: 12 }}>
+          {stages.map((s, i) => (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: i ? '1px solid var(--hair)' : 'none' }}>
+              <span style={{ width: 22, height: 22, borderRadius: 7, background: 'var(--soft)', color: 'var(--muted)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i+1}</span>
+              <input value={s.name} onChange={e => updateStage(i, { name: e.target.value })} style={{ flex: 1, minWidth: 0, border: 'none', background: 'none', outline: 'none', fontSize: 15.5, fontWeight: 500, color: 'var(--ink)', fontFamily: 'inherit' }} />
+              <Stepper value={s.sec} step={30} min={30} max={3600} fmtFn={fmt} onChange={v => updateStage(i, { sec: v })} />
+              <button onClick={() => delStage(i)} disabled={stages.length <= 1} style={{ background: 'none', border: 'none', color: 'var(--faint)', cursor: stages.length <= 1 ? 'default' : 'pointer', opacity: stages.length <= 1 ? .3 : 1, display: 'flex', padding: 4 }}><IC.trash size={18} /></button>
+            </div>
+          ))}
+        </Card>
+        <button onClick={addStage} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 24px 2px', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}><IC.plus size={18} /> 新增流程</button>
+        <SectionLabel right={<span style={{ fontSize: 12.5, color: 'var(--muted)', fontWeight: 600 }}>{people.length} 位</span>}>面試者名單</SectionLabel>
+        <Card style={{ marginBottom: 12 }}>
+          {people.map((p, i) => (
+            <div key={p.id+i} onClick={() => openEditPerson(i)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderTop: i ? '1px solid var(--hair)' : 'none', cursor: 'pointer' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--faint)', width: 30 }}>{p.id}</span>
+              <span style={{ flex: 1, fontSize: 16, fontWeight: 500, color: 'var(--ink)' }}>{p.name}</span>
+              {p.note && <span style={{ fontSize: 12.5, color: 'var(--muted)', background: 'var(--soft)', padding: '3px 9px', borderRadius: 999 }}>{p.note}</span>}
+              <IC.chevR size={16} style={{ color: 'var(--faint)' }} />
+            </div>
+          ))}
+          {people.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: 'var(--faint)', fontSize: 14 }}>尚無面試者</div>}
+        </Card>
+        <button onClick={openNewPerson} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 8px 2px', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}><IC.plus size={18} /> 新增面試者</button>
+      </div>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--hair)', background: 'var(--card)' }}>
+        <Btn kind="primary" size="lg" full disabled={people.length === 0} onClick={onStart} icon={<IC.play size={20} />}>開始面試</Btn>
+      </div>
+      <Sheet open={!!personSheet} onClose={() => setPersonSheet(null)} title={personSheet?.new ? '新增面試者' : '編輯面試者'}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ width: 96 }}><div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>編號</div><TInput value={draft.id} mono onChange={v => setDraft({ ...draft, id: v })} placeholder="001" /></div>
+            <div style={{ flex: 1 }}><div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>姓名</div><TInput value={draft.name} onChange={v => setDraft({ ...draft, name: v })} placeholder="王小明" /></div>
+          </div>
+          <div><div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>備註</div><TInput value={draft.note} onChange={v => setDraft({ ...draft, note: v })} placeholder="選填，如組別、特殊需求" /></div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            {!personSheet?.new && <Btn kind="ghost" onClick={delPerson} style={{ color: 'var(--danger)' }} icon={<IC.trash size={18} />}>刪除</Btn>}
+            <Btn kind="primary" full onClick={savePerson}>儲存</Btn>
+          </div>
+        </div>
+      </Sheet>
+      <Sheet open={tplOpen} onClose={() => setTplOpen(false)} title="流程模板">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {templates.map(t => (
+            <Card key={t.id} onClick={() => { setStages(t.stages.map(s => ({ ...s, id: uid() }))); setTplOpen(false); }} style={{ padding: 14, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--ink)' }}>{t.name}</div>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--accent)', fontWeight: 600 }}>{fmt(t.stages.reduce((a,s) => a+s.sec, 0))}</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6 }}>{t.stages.map(s => s.name).join(' · ')}</div>
+            </Card>
+          ))}
+        </div>
+      </Sheet>
+    </div>
+  );
+}
+Object.assign(window, { SetupScreen, TInput });
+</script>
+
+<!-- misc -->
+<script type="text/babel">
+function Stat({ label, value, sub, accent }) {
+  return (<Card style={{ flex: 1, padding: '16px 16px 14px' }}><div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>{label}</div><div style={{ fontFamily: 'var(--mono)', fontSize: 34, fontWeight: 600, color: accent ? 'var(--accent)' : 'var(--ink)', lineHeight: 1.1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{value}</div>{sub && <div style={{ fontSize: 12, color: 'var(--faint)', marginTop: 2 }}>{sub}</div>}</Card>);
+}
+function StatsScreen({ people, doneSet, totalSec, currentIdx, started }) {
+  const total = people.length, done = doneSet.size, remain = total - done;
+  const pct = total ? Math.round(done/total*100) : 0;
+  return (
+    <div style={{ height: '100%', overflow: 'auto', padding: '8px 16px 24px' }}>
+      <div style={{ padding: '6px 4px 18px' }}><div style={{ fontSize: 30, fontWeight: 700, color: 'var(--ink)' }}>今日統計</div><div style={{ fontSize: 14.5, color: 'var(--muted)', marginTop: 5 }}>{new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'long' })}</div></div>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}><Stat label="面試人數" value={total} sub="今日總名額" /><Stat label="已完成" value={done} sub={pct+'% 進度'} accent /><Stat label="剩餘" value={remain} sub="待面試" /></div>
+      <Card style={{ padding: 16, marginBottom: 18 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}><span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>整體進度</span><span style={{ fontFamily: 'var(--mono)', fontSize: 13.5, fontWeight: 600, color: 'var(--accent)' }}>{done}/{total}</span></div>
+        <div style={{ height: 10, borderRadius: 999, background: 'var(--soft)', overflow: 'hidden' }}><div style={{ width: pct+'%', height: '100%', background: 'var(--accent)', borderRadius: 999, transition: 'width .4s ease' }} /></div>
+        <div style={{ fontSize: 12.5, color: 'var(--faint)', marginTop: 10 }}>預估剩餘時間 約 {fmt(remain*totalSec)}（{Math.round(remain*totalSec/60)} 分鐘）</div>
+      </Card>
+      <SectionLabel>面試者進度</SectionLabel>
+      <Card>{people.map((p,i) => { const isDone=doneSet.has(i), isCur=started&&i===currentIdx; return (<div key={p.id+i} style={{ display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderTop:i?'1px solid var(--hair)':'none' }}><span style={{ width:24,height:24,borderRadius:999,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',background:isDone?'var(--accent)':isCur?'color-mix(in srgb,var(--accent) 16%,transparent)':'var(--soft)',color:isDone?'#fff':isCur?'var(--accent)':'var(--faint)',border:isCur?'1.5px solid var(--accent)':'none' }}>{isDone?<IC.check size={14}/>:<span style={{ fontFamily:'var(--mono)',fontSize:11,fontWeight:700 }}>{p.id}</span>}</span><span style={{ flex:1,fontSize:15.5,fontWeight:500,color:isDone?'var(--faint)':'var(--ink)',textDecoration:isDone?'line-through':'none' }}>{p.name}</span><span style={{ fontSize:12,fontWeight:600,whiteSpace:'nowrap',color:isCur?'var(--accent)':'var(--faint)' }}>{isDone?'已完成':isCur?'進行中':'等待中'}</span></div>);})}</Card>
+    </div>
+  );
+}
+function ToggleSwitch({ on, onChange }) {
+  return (<button onClick={() => onChange(!on)} style={{ width:50,height:30,borderRadius:999,border:'none',cursor:'pointer',background:on?'var(--accent)':'var(--hair)',position:'relative',transition:'background .2s',WebkitTapHighlightColor:'transparent',flexShrink:0 }}><span style={{ position:'absolute',top:3,left:on?23:3,width:24,height:24,borderRadius:'50%',background:'#fff',transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,.25)' }} /></button>);
+}
+function Row({ label, sub, children, onClick, border = true }) {
+  return (<div onClick={onClick} style={{ display:'flex',alignItems:'center',gap:12,padding:'13px 14px',borderTop:border?'1px solid var(--hair)':'none',cursor:onClick?'pointer':'default' }}><div style={{ flex:1 }}><div style={{ fontSize:15.5,fontWeight:500,color:'var(--ink)' }}>{label}</div>{sub&&<div style={{ fontSize:12.5,color:'var(--muted)',marginTop:2 }}>{sub}</div>}</div>{children}</div>);
+}
+function SettingsScreen({ settings, setSettings, engine, dark, onToggleDark, layout, onSetLayout, warnSec, onSetWarnSec }) {
+  const upd = (patch) => setSettings({ ...settings, ...patch });
+  const SHORTCUTS = [['Space','開始 / 暫停'],['R','重設目前流程'],['N','下一位'],['F','全螢幕投影'],['M','靜音切換']];
+  const REMINDERS = [['r5','剩餘 5 分鐘'],['r3','剩餘 3 分鐘'],['r1','剩餘 1 分鐘'],['r0','時間到']];
+  const LAYOUTS = [{ id:'number',label:'數字' },{ id:'ring',label:'圓環' },{ id:'minimal',label:'極簡' }];
+  return (
+    <div style={{ height:'100%',overflow:'auto',padding:'8px 16px 24px' }}>
+      <div style={{ padding:'6px 4px 18px' }}><div style={{ fontSize:30,fontWeight:700,color:'var(--ink)' }}>設定</div></div>
+      <SectionLabel>外觀</SectionLabel>
+      <Card style={{ marginBottom:18 }}>
+        <Row label="深色模式" sub="深色背景，適合低光環境" border={false}><ToggleSwitch on={dark} onChange={onToggleDark} /></Row>
+        <Row label="計時器版面"><div style={{ display:'flex',gap:6 }}>{LAYOUTS.map(l => (<button key={l.id} onClick={() => onSetLayout(l.id)} style={{ padding:'7px 12px',borderRadius:10,cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,border:layout===l.id?'1.5px solid var(--accent)':'1px solid var(--hair)',background:layout===l.id?'color-mix(in srgb,var(--accent) 10%,transparent)':'var(--card)',color:layout===l.id?'var(--accent)':'var(--ink)',WebkitTapHighlightColor:'transparent' }}>{l.label}</button>))}</div></Row>
+        <Row label="紅色警示" sub={`倒數最後 ${warnSec} 秒變紅`}><div style={{ display:'flex',alignItems:'center',gap:8 }}><button onClick={() => onSetWarnSec(Math.max(10,warnSec-10))} style={{ width:30,height:30,borderRadius:8,border:'1px solid var(--hair)',background:'var(--card)',color:'var(--ink)',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>–</button><span style={{ fontFamily:'var(--mono)',fontSize:14,fontWeight:600,minWidth:36,textAlign:'center' }}>{warnSec}s</span><button onClick={() => onSetWarnSec(Math.min(120,warnSec+10))} style={{ width:30,height:30,borderRadius:8,border:'1px solid var(--hair)',background:'var(--card)',color:'var(--ink)',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>+</button></div></Row>
+      </Card>
+      <SectionLabel>提醒音</SectionLabel>
+      <Card style={{ marginBottom:18 }}>
+        <div style={{ padding:'14px 14px 6px' }}><div style={{ fontSize:13,fontWeight:600,color:'var(--muted)',marginBottom:10 }}>音效類型</div><div style={{ display:'flex',gap:8 }}>{SOUNDS.map(s => { const on=settings.sound===s.id; return (<button key={s.id} onClick={() => { upd({ sound:s.id }); engine.test(s.id); }} style={{ flex:1,padding:'11px 6px',borderRadius:12,cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,border:on?'1.5px solid var(--accent)':'1px solid var(--hair)',background:on?'color-mix(in srgb,var(--accent) 8%,transparent)':'var(--card)',color:on?'var(--accent)':'var(--ink)',WebkitTapHighlightColor:'transparent' }}>{s.name}</button>); })}</div></div>
+        <Row label="音量"><div style={{ display:'flex',alignItems:'center',gap:10,width:150 }}><IC.vol size={18} style={{ color:'var(--muted)',flexShrink:0 }} /><input type="range" min={0} max={100} value={Math.round(settings.volume*100)} onChange={e => { const v=+e.target.value/100; upd({ volume:v }); engine.setVolume(v); }} style={{ flex:1,accentColor:'var(--accent)' }} /></div></Row>
+        <Row label="靜音模式" sub="關閉所有提醒音"><ToggleSwitch on={settings.muted} onChange={v => { upd({ muted:v }); engine.setMuted(v); }} /></Row>
+        <Row label="測試音效"><Btn kind="soft" size="sm" onClick={() => engine.test(settings.sound)} icon={<IC.bell size={16} />}>試聽</Btn></Row>
+      </Card>
+      <SectionLabel>時間提醒點</SectionLabel>
+      <Card style={{ marginBottom:18 }}>{REMINDERS.map(([k,label],i) => (<Row key={k} label={label} border={i>0}><ToggleSwitch on={settings[k]} onChange={v => upd({ [k]:v })} /></Row>))}<Row label="螢幕閃爍提醒" sub="提醒時畫面閃動"><ToggleSwitch on={settings.flash} onChange={v => upd({ flash:v })} /></Row></Card>
+      <SectionLabel>鍵盤快捷鍵</SectionLabel>
+      <Card style={{ marginBottom:18 }}>{SHORTCUTS.map(([key,label],i) => (<Row key={key} label={label} border={i>0}><kbd style={{ fontFamily:'var(--mono)',fontSize:12.5,fontWeight:600,color:'var(--ink)',background:'var(--soft)',border:'1px solid var(--hair)',borderRadius:7,padding:'4px 10px',minWidth:20,textAlign:'center' }}>{key}</kbd></Row>))}</Card>
+      <SectionLabel>資料</SectionLabel>
+      <Card><Row label="匯出今日紀錄" sub="PDF / Excel" border={false}><IC.chevR size={16} style={{ color:'var(--faint)' }} /></Row><Row label="雲端同步" sub="多裝置同步計時資訊"><ToggleSwitch on={settings.cloud} onChange={v => upd({ cloud:v })} /></Row></Card>
+    </div>
+  );
+}
+Object.assign(window, { StatsScreen, SettingsScreen, ToggleSwitch });
+</script>
+
+<!-- timer views -->
+<script type="text/babel">
+const { useState: useStateTV } = React;
+let DANGER_AT = 60;
+function setDangerAt(n) { DANGER_AT = n; }
+function timeColor(r) { return r <= DANGER_AT ? 'var(--danger)' : 'var(--ink)'; }
+function VariantNumber({ stage, remaining, big }) {
+  const pct = stage.sec ? (stage.sec-remaining)/stage.sec*100 : 0, col = timeColor(remaining);
+  return (<div style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:big?18:14 }}><div style={{ fontSize:big?22:15,fontWeight:600,letterSpacing:'.06em',color:'var(--muted)' }}>{stage.name}</div><div style={{ fontFamily:'var(--mono)',fontWeight:600,fontVariantNumeric:'tabular-nums',letterSpacing:'-.02em',fontSize:big?'min(34vw,300px)':'clamp(72px, 22vw, 124px)',lineHeight:.9,color:col,transition:'color .3s' }}>{fmt(remaining)}</div><div style={{ width:big?'60%':220,height:big?8:6,borderRadius:999,background:'var(--soft)',overflow:'hidden',marginTop:4 }}><div style={{ width:pct+'%',height:'100%',background:col,borderRadius:999,transition:'width .9s linear, background .3s' }} /></div></div>);
+}
+function VariantRing({ stage, remaining, big }) {
+  const R=88, C=2*Math.PI*R, pct=stage.sec?remaining/stage.sec:0, col=timeColor(remaining), sz=big?'min(64vmin,520px)':'min(60vw,290px)';
+  return (<div style={{ position:'relative',width:sz,height:sz,display:'flex',alignItems:'center',justifyContent:'center' }}><svg viewBox="0 0 200 200" style={{ position:'absolute',inset:0,transform:'rotate(-90deg)' }}><circle cx="100" cy="100" r={R} fill="none" stroke="var(--soft)" strokeWidth="10" /><circle cx="100" cy="100" r={R} fill="none" stroke={col} strokeWidth="10" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C*(1-pct)} style={{ transition:'stroke-dashoffset .9s linear,stroke .3s' }} /></svg><div style={{ textAlign:'center' }}><div style={{ fontSize:big?22:14,fontWeight:600,color:'var(--muted)',letterSpacing:'.04em',marginBottom:big?10:6 }}>{stage.name}</div><div style={{ fontFamily:'var(--mono)',fontWeight:600,fontVariantNumeric:'tabular-nums',letterSpacing:'-.02em',fontSize:big?'min(18vmin,150px)':'clamp(36px,14vw,76px)',lineHeight:.95,color:col,transition:'color .3s' }}>{fmt(remaining)}</div></div></div>);
+}
+function VariantMinimal({ stage, remaining, big }) {
+  const col = timeColor(remaining);
+  return (<div style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:big?24:8 }}><div style={{ fontFamily:'var(--mono)',fontWeight:500,fontVariantNumeric:'tabular-nums',letterSpacing:'-.03em',fontSize:big?'min(34vw,360px)':'clamp(64px,22vw,118px)',lineHeight:.82,color:col,transition:'color .3s' }}>{fmt(remaining)}</div><div style={{ fontSize:big?26:16,fontWeight:500,letterSpacing:'.3em',color:'var(--faint)',textTransform:'uppercase',paddingLeft:'.3em' }}>{stage.name}</div></div>);
+}
+function TimerVariant({ layout, ...p }) {
+  if (layout==='ring') return <VariantRing {...p} />;
+  if (layout==='minimal') return <VariantMinimal {...p} />;
+  return <VariantNumber {...p} />;
+}
+function StageStrip({ stages, stageIdx, onJump }) {
+  return (<div style={{ display:'flex',gap:6,width:'100%' }}>{stages.map((s,i) => { const done=i<stageIdx,cur=i===stageIdx; return (<button key={s.id||i} onClick={() => onJump(i)} style={{ flex:1,background:'none',border:'none',cursor:'pointer',padding:0,WebkitTapHighlightColor:'transparent' }}><div style={{ height:4,borderRadius:999,background:done?'var(--accent)':cur?'var(--accent)':'var(--hair)',opacity:done?.45:1,transition:'background .3s' }} /><div style={{ fontSize:11,fontWeight:cur?700:500,color:cur?'var(--accent)':'var(--faint)',marginTop:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis' }}>{s.name}</div></button>); })}</div>);
+}
+function RunningScreen(ctl) {
+  const { person,personIdx,peopleCount,stage,stageIdx,stages,remaining,running,layout,toggle,resetStage,nextStage,nextPerson,prevPerson,jumpPerson,enterFullscreen,banner,dismissBanner,onBack } = ctl;
+  const [jump,setJump] = useStateTV(false);
+  return (
+    <div style={{ height:'100%',display:'flex',flexDirection:'column' }}>
+      <div style={{ display:'flex',alignItems:'center',gap:10,padding:'10px 12px' }}>
+        <button onClick={onBack} style={{ display:'flex',alignItems:'center',gap:2,background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:15,fontWeight:500,fontFamily:'inherit',padding:4 }}><IC.back size={20} /> 設定</button>
+        <button onClick={() => setJump(true)} style={{ flex:1,display:'flex',flexDirection:'column',alignItems:'center',background:'none',border:'none',cursor:'pointer' }}><div style={{ display:'flex',alignItems:'center',gap:7 }}><span style={{ fontFamily:'var(--mono)',fontSize:12,fontWeight:700,color:'var(--faint)' }}>{person.id}</span><span style={{ fontSize:17,fontWeight:700,color:'var(--ink)',whiteSpace:'nowrap' }}>{person.name}</span><IC.chevD size={15} style={{ color:'var(--faint)' }} /></div><span style={{ fontSize:11.5,color:'var(--faint)',fontWeight:500,whiteSpace:'nowrap' }}>第 {personIdx+1} / {peopleCount} 位</span></button>
+        <button onClick={enterFullscreen} aria-label="全螢幕" style={{ display:'flex',background:'var(--soft)',borderRadius:12,border:'none',color:'var(--ink)',cursor:'pointer',padding:9 }}><IC.expand size={20} /></button>
+      </div>
+      <div style={{ padding:'4px 16px 0' }}><StageStrip stages={stages} stageIdx={stageIdx} onJump={i => ctl.jumpStage(i)} /></div>
+      <div style={{ flex:1,minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',padding:'8px 16px' }}><TimerVariant layout={layout} stage={stage} remaining={remaining} /></div>
+      {banner && (<div style={{ margin:'0 16px 10px',display:'flex',alignItems:'center',gap:10,padding:'12px 14px',borderRadius:14,background:'color-mix(in srgb,var(--danger) 12%,var(--card))',border:'1px solid color-mix(in srgb,var(--danger) 30%,transparent)' }}><IC.bell size={19} style={{ color:'var(--danger)' }} /><span style={{ flex:1,fontSize:14.5,fontWeight:600,color:'var(--ink)' }}>{banner.text}</span><button onClick={dismissBanner} style={{ background:'var(--danger)',color:'#fff',border:'none',borderRadius:999,padding:'6px 13px',fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'inherit' }}>關閉提醒</button></div>)}
+      <div style={{ padding:'6px 16px 14px' }}>
+        <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:28,marginBottom:14 }}>
+          <RoundBtn icon={<IC.reset size={22} />} onClick={resetStage} label="重設" kind="soft" size={56} />
+          <RoundBtn icon={running?<IC.pause size={30} />:<IC.play size={30} />} onClick={toggle} label={running?'暫停':'開始'} kind="primary" size={76} />
+          <RoundBtn icon={<IC.next size={22} />} onClick={nextStage} label="下一段" kind="soft" size={56} />
+        </div>
+        <div style={{ display:'flex',gap:10 }}>
+          <Btn kind="ghost" onClick={prevPerson} disabled={personIdx===0} icon={<IC.prev size={17} />} full>上一位</Btn>
+          <Btn kind="solid" onClick={nextPerson} icon={<IC.next size={17} />} full>下一位面試者</Btn>
+        </div>
+      </div>
+      <Sheet open={jump} onClose={() => setJump(false)} title="跳至指定面試者">
+        <div style={{ display:'flex',flexDirection:'column',gap:8 }}>{ctl.people.map((p,i) => (<button key={p.id+i} onClick={() => { jumpPerson(i); setJump(false); }} style={{ display:'flex',alignItems:'center',gap:12,padding:'13px 14px',borderRadius:14,cursor:'pointer',fontFamily:'inherit',textAlign:'left',border:i===personIdx?'1.5px solid var(--accent)':'1px solid var(--hair)',background:i===personIdx?'color-mix(in srgb,var(--accent) 7%,transparent)':'var(--card)' }}><span style={{ fontFamily:'var(--mono)',fontSize:13,fontWeight:700,color:'var(--faint)',width:30 }}>{p.id}</span><span style={{ flex:1,fontSize:16,fontWeight:500,color:'var(--ink)' }}>{p.name}</span>{ctl.doneSet.has(i)&&<IC.check size={18} style={{ color:'var(--accent)' }} />}{i===personIdx&&<span style={{ fontSize:12,fontWeight:700,color:'var(--accent)' }}>進行中</span>}</button>))}</div>
+      </Sheet>
+    </div>
+  );
+}
+function FullscreenView(ctl) {
+  const { person,stage,stageIdx,stages,remaining,running,toggle,nextPerson,nextStage,exitFullscreen } = ctl;
+  const col = remaining<=DANGER_AT?'var(--danger)':'#fff';
+  const [showCtl,setShowCtl] = useStateTV(true);
+  return (
+    <div onClick={() => setShowCtl(s => !s)} style={{ position:'fixed',inset:0,zIndex:300,background:'#08080a',color:'#fff',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 32px',cursor:'pointer',overflow:'hidden' }}>
+      <div style={{ position:'absolute',top:36,left:0,right:0,textAlign:'center' }}><div style={{ fontSize:'clamp(15px,2.4vw,22px)',color:'rgba(255,255,255,.45)',fontWeight:600,letterSpacing:'.1em' }}>面試者</div><div style={{ fontSize:'clamp(34px,7vw,72px)',fontWeight:700,marginTop:8 }}>{person.name}</div></div>
+      <div style={{ textAlign:'center' }}>
+        <div style={{ fontSize:'clamp(20px,4vw,40px)',color:'rgba(255,255,255,.6)',fontWeight:600,letterSpacing:'.06em',marginBottom:'clamp(12px,3vh,32px)' }}>{stage.name}</div>
+        <div style={{ fontFamily:'var(--mono)',fontWeight:600,fontVariantNumeric:'tabular-nums',letterSpacing:'-.02em',fontSize:'min(30vw,32vh,400px)',lineHeight:.85,color:col,transition:'color .3s' }}>{fmt(remaining)}</div>
+        <div style={{ display:'flex',gap:10,justifyContent:'center',marginTop:'clamp(20px,4vh,44px)' }}>{stages.map((s,i) => (<span key={i} style={{ width:i===stageIdx?34:10,height:10,borderRadius:999,background:i<stageIdx?'rgba(255,255,255,.3)':i===stageIdx?'#fff':'rgba(255,255,255,.15)',transition:'all .3s' }} />))}</div>
+      </div>
+      <div onClick={e => e.stopPropagation()} style={{ position:'absolute',bottom:40,display:'flex',gap:16,alignItems:'center',opacity:showCtl?1:0,transform:showCtl?'translateY(0)':'translateY(20px)',transition:'opacity .25s,transform .25s',pointerEvents:showCtl?'auto':'none' }}>
+        <button onClick={toggle} style={{ display:'flex',alignItems:'center',justifyContent:'center',width:72,height:72,borderRadius:'50%',border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer' }}>{running?<IC.pause size={30}/>:<IC.play size={30}/>}</button>
+        <button onClick={nextStage} style={{ display:'flex',alignItems:'center',gap:7,padding:'0 22px',height:60,borderRadius:999,border:'1px solid rgba(255,255,255,.2)',background:'rgba(255,255,255,.08)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:16,fontWeight:600 }}>下一段</button>
+        <button onClick={nextPerson} style={{ display:'flex',alignItems:'center',gap:7,padding:'0 22px',height:60,borderRadius:999,border:'1px solid rgba(255,255,255,.2)',background:'rgba(255,255,255,.08)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:16,fontWeight:600 }}>下一位</button>
+        <button onClick={exitFullscreen} aria-label="退出全螢幕" style={{ display:'flex',alignItems:'center',justifyContent:'center',width:60,height:60,borderRadius:'50%',border:'1px solid rgba(255,255,255,.2)',background:'rgba(255,255,255,.08)',color:'#fff',cursor:'pointer' }}><IC.shrink size={24}/></button>
+      </div>
+    </div>
+  );
+}
+function TimeUpOverlay({ person, onStop, onRestart, onNext, onSettings, alarmOn }) {
+  return (
+    <div style={{ position:'fixed',inset:0,zIndex:400,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 28px',background:'rgba(12,12,15,.62)' }}>
+      <div style={{ width:'100%',maxWidth:360,background:'var(--card)',borderRadius:26,padding:'30px 24px 24px',textAlign:'center',boxShadow:'0 30px 70px -20px rgba(0,0,0,.5)',animation:'popIn .3s cubic-bezier(.22,1.2,.36,1)' }}>
+        <div style={{ width:72,height:72,borderRadius:'50%',margin:'0 auto 18px',display:'flex',alignItems:'center',justifyContent:'center',background:'color-mix(in srgb,var(--danger) 14%,transparent)',color:'var(--danger)',animation:alarmOn?'ring 1s ease-in-out infinite':'none' }}><IC.bell size={36}/></div>
+        <div style={{ fontSize:26,fontWeight:700,color:'var(--ink)' }}>時間到</div>
+        <div style={{ fontSize:15,color:'var(--muted)',marginTop:8 }}>{person.name}（{person.id}）面試結束</div>
+        <div style={{ display:'flex',flexDirection:'column',gap:10,marginTop:24 }}>
+          {alarmOn?<Btn kind="danger" size="lg" full onClick={onStop} icon={<IC.bell size={19}/>}>停止提醒</Btn>:<Btn kind="solid" size="lg" full onClick={onNext} icon={<IC.next size={19}/>}>下一位面試者</Btn>}
+          <div style={{ display:'flex',gap:10 }}><Btn kind="ghost" full onClick={onRestart} icon={<IC.reset size={17}/>}>重新開始</Btn>{alarmOn&&<Btn kind="ghost" full onClick={onNext} icon={<IC.next size={17}/>}>下一位</Btn>}</div>
+          <button onClick={onSettings} style={{ background:'none',border:'none',color:'var(--faint)',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit',marginTop:4 }}>返回設定</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+Object.assign(window, { RunningScreen, FullscreenView, TimeUpOverlay, TimerVariant, setDangerAt });
+</script>
+
+<!-- app -->
+<script type="text/babel">
+const { useState: useStateApp, useEffect: useEffectApp, useRef: useRefApp, useCallback: useCallbackApp } = React;
+const engine = new SoundEngine();
+function App() {
+  const [stages,setStages] = useStateApp(DEFAULT_STAGES.map(s => ({...s})));
+  const [people,setPeople] = useStateApp(DEFAULT_PEOPLE.map(p => ({...p})));
+  const [settings,setSettings] = useStateApp({ sound:'ring',volume:0.7,muted:false,r5:true,r3:true,r1:true,r0:true,flash:true,cloud:false });
+  const [view,setView] = useStateApp('home');
+  const [tab,setTab] = useStateApp('setup');
+  const [personIdx,setPersonIdx] = useStateApp(0);
+  const [stageIdx,setStageIdx] = useStateApp(0);
+  const [doneSet,setDoneSet] = useStateApp(() => new Set());
+  const [running,setRunning] = useStateApp(false);
+  const [remaining,setRemaining] = useStateApp(DEFAULT_STAGES[0].sec);
+  const deadlineRef = useRefApp(null);
+  const remainRef = useRefApp(DEFAULT_STAGES[0].sec);
+  const firedRef = useRefApp(new Set());
+  const [banner,setBanner] = useStateApp(null);
+  const [timeUp,setTimeUp] = useStateApp(false);
+  const [alarmOn,setAlarmOn] = useStateApp(false);
+  const [flashOn,setFlashOn] = useStateApp(false);
+  const [dark,setDark] = useStateApp(false);
+  const [layout,setLayout] = useStateApp('number');
+  const [warnSec,setWarnSec] = useStateApp(60);
+  const stage = stages[Math.min(stageIdx,stages.length-1)]||stages[0];
+  const person = people[Math.min(personIdx,people.length-1)]||people[0];
+  const totalSec = stages.reduce((a,s) => a+s.sec, 0);
+  useEffectApp(() => { engine.setVolume(settings.volume); engine.setMuted(settings.muted); }, [settings.volume,settings.muted]);
+  useEffectApp(() => { document.body.dataset.theme = dark?'dark':'light'; }, [dark]);
+  useEffectApp(() => { setDangerAt(warnSec); }, [warnSec]);
+  const reminderPlan = useCallbackApp(() => {
+    const plan=[];
+    if (settings.r5&&stage.sec>300) plan.push({ key:'r5',at:300,text:'剩餘 5 分鐘' });
+    if (settings.r3&&stage.sec>180) plan.push({ key:'r3',at:180,text:'剩餘 3 分鐘' });
+    if (settings.r1&&stage.sec>60) plan.push({ key:'r1',at:60,text:'剩餘 1 分鐘' });
+    return plan;
+  }, [settings.r5,settings.r3,settings.r1,stage.sec]);
+  const triggerFlash = () => { if (!settings.flash) return; setFlashOn(true); setTimeout(() => setFlashOn(false), 1400); };
+  useEffectApp(() => {
+    if (!running) return;
+    const tick = () => {
+      const now=performance.now(), rem=Math.max(0,(deadlineRef.current-now)/1000);
+      remainRef.current=rem; setRemaining(rem);
+      reminderPlan().forEach(p => { if (rem<=p.at&&!firedRef.current.has(p.key)) { firedRef.current.add(p.key); engine.reminder(settings.sound,p.key); setBanner({ text:p.text }); triggerFlash(); } });
+      if (rem<=0) { setRunning(false); handleStageEnd(); }
+    };
+    tick();
+    const id=setInterval(tick,200);
+    return () => clearInterval(id);
+  }, [running,settings.sound,reminderPlan]);
+  const loadStage = (idx,autostart=false) => { const s=stages[idx]; if(!s) return; firedRef.current=new Set(); setBanner(null); remainRef.current=s.sec; setRemaining(s.sec); setStageIdx(idx); if(autostart) startFrom(s.sec); else setRunning(false); };
+  const startFrom = (sec) => { deadlineRef.current=performance.now()+sec*1000; setRunning(true); };
+  const toggle = () => { if(timeUp) return; if(running) setRunning(false); else { if(remainRef.current<=0) { loadStage(stageIdx); return; } startFrom(remainRef.current); } };
+  const resetStage = () => { firedRef.current=new Set(); setBanner(null); remainRef.current=stage.sec; setRemaining(stage.sec); setRunning(false); };
+  const handleStageEnd = () => {
+    engine.reminder(settings.sound,'timeup'); triggerFlash();
+    if (stageIdx<stages.length-1) { const next=stageIdx+1; setBanner({ text:stage.name+' 結束 · 進入「'+stages[next].name+'」' }); setTimeout(() => loadStage(next,true),50); }
+    else { if(settings.r0) { setAlarmOn(true); engine.startAlarm(settings.sound); } setTimeUp(true); }
+  };
+  const nextStage = () => { if(stageIdx<stages.length-1) loadStage(stageIdx+1,running); else handleStageEnd(); };
+  const jumpStage = (idx) => loadStage(idx,false);
+  const stopAlarm = () => { engine.stopAlarm(); setAlarmOn(false); };
+  const markDoneAndGo = (ni) => { setDoneSet(prev => { const n=new Set(prev); n.add(personIdx); return n; }); stopAlarm(); setTimeUp(false); setPersonIdx(ni); loadStage(0,false); };
+  const nextPerson = () => { const ni=Math.min(people.length-1,personIdx+1); if(timeUp) markDoneAndGo(personIdx>=people.length-1?personIdx:ni); else { setPersonIdx(ni); loadStage(0,false); } };
+  const prevPerson = () => { stopAlarm(); setTimeUp(false); setPersonIdx(Math.max(0,personIdx-1)); loadStage(0,false); };
+  const jumpPerson = (i) => { stopAlarm(); setTimeUp(false); setPersonIdx(i); loadStage(0,false); };
+  const restartPerson = () => { stopAlarm(); setTimeUp(false); loadStage(0,true); };
+  const startInterview = () => { setView('run'); setPersonIdx(0); loadStage(0,false); };
+  const goSettings = () => { stopAlarm(); setTimeUp(false); setRunning(false); setView('home'); };
+  useEffectApp(() => {
+    if (view==='home') return;
+    const onKey = (e) => {
+      if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+      const k=e.key.toLowerCase();
+      if (e.code==='Space') { e.preventDefault(); if(timeUp&&alarmOn) stopAlarm(); else toggle(); }
+      else if (k==='r') resetStage();
+      else if (k==='n') nextPerson();
+      else if (k==='f') setView(v => v==='full'?'run':'full');
+      else if (k==='m') { const nm=!settings.muted; setSettings(s => ({...s,muted:nm})); engine.setMuted(nm); }
+      else if (k==='escape'&&view==='full') setView('run');
+    };
+    window.addEventListener('keydown',onKey);
+    return () => window.removeEventListener('keydown',onKey);
+  }, [view,running,timeUp,alarmOn,settings.muted,personIdx,stageIdx,remaining]);
+  const ctl = { person,personIdx,peopleCount:people.length,people,doneSet,stage,stageIdx,stages,remaining,running,layout,toggle,resetStage,nextStage,jumpStage,prevStage:()=>loadStage(Math.max(0,stageIdx-1)),nextPerson,prevPerson,jumpPerson,enterFullscreen:()=>setView('full'),exitFullscreen:()=>setView('run'),banner,dismissBanner:()=>setBanner(null),onBack:goSettings };
+  return (
+    <div style={{ position:'fixed',inset:0,background:'var(--bg)',fontFamily:'var(--ui-font)',overflow:'hidden',display:'flex',flexDirection:'column' }}>
+      {flashOn&&<div style={{ position:'fixed',inset:0,zIndex:500,background:'var(--danger)',animation:'flash 1.4s ease',pointerEvents:'none' }} />}
+      {view==='home'&&(
+        <React.Fragment>
+          <div style={{ flex:1,minHeight:0,maxWidth:640,width:'100%',margin:'0 auto',alignSelf:'stretch',display:'flex',flexDirection:'column' }}>
+            {tab==='setup'&&<SetupScreen stages={stages} setStages={setStages} people={people} setPeople={setPeople} templates={TEMPLATES} onStart={startInterview} totalSec={totalSec} />}
+            {tab==='stats'&&<StatsScreen people={people} doneSet={doneSet} totalSec={totalSec} currentIdx={personIdx} started={view!=='home'} />}
+            {tab==='settings'&&<SettingsScreen settings={settings} setSettings={setSettings} engine={engine} dark={dark} onToggleDark={setDark} layout={layout} onSetLayout={setLayout} warnSec={warnSec} onSetWarnSec={setWarnSec} />}
+          </div>
+          <div style={{ maxWidth:640,width:'100%',margin:'0 auto',alignSelf:'stretch',background:'var(--card)' }}><TabBar tab={tab} onTab={setTab} /></div>
+        </React.Fragment>
+      )}
+      {view==='run'&&<div style={{ flex:1,minHeight:0,maxWidth:640,width:'100%',margin:'0 auto',alignSelf:'stretch' }}><RunningScreen {...ctl} /></div>}
+      {view==='full'&&<FullscreenView {...ctl} />}
+      {timeUp&&<TimeUpOverlay person={person} alarmOn={alarmOn} onStop={stopAlarm} onRestart={restartPerson} onNext={nextPerson} onSettings={goSettings} />}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
