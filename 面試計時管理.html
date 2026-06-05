@@ -904,25 +904,38 @@ const { useState: useStateApp, useEffect: useEffectApp, useRef: useRefApp, useCa
 
 const engine = new SoundEngine();
 
+const LS_KEY = 'itm_v1';
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { return null; }
+}
+
 function App() {
-  const [stages, setStages] = useStateApp(DEFAULT_STAGES.map(s => ({ ...s })));
-  const [people, setPeople] = useStateApp(DEFAULT_PEOPLE.map(p => ({ ...p })));
-  const [settings, setSettings] = useStateApp({
+  const saved = React.useMemo(loadSaved, []);
+
+  const [stages, setStages] = useStateApp(() => saved?.stages || DEFAULT_STAGES.map(s => ({ ...s })));
+  const [people, setPeople] = useStateApp(() => saved?.people || DEFAULT_PEOPLE.map(p => ({ ...p })));
+  const [settings, setSettings] = useStateApp(() => saved?.settings || {
     sound: 'ring', volume: 0.7, muted: false,
     r5: true, r3: true, r1: true, r0: true, flash: true, cloud: false,
   });
 
-  const [view, setView] = useStateApp('home');
+  const [view, setView] = useStateApp(() => saved?.view || 'home');
   const [tab, setTab] = useStateApp('setup');
 
-  const [personIdx, setPersonIdx] = useStateApp(0);
-  const [stageIdx, setStageIdx] = useStateApp(0);
-  const [doneSet, setDoneSet] = useStateApp(() => new Set());
+  const [personIdx, setPersonIdx] = useStateApp(() => saved?.personIdx ?? 0);
+  const [stageIdx, setStageIdx] = useStateApp(() => saved?.stageIdx ?? 0);
+  const [doneSet, setDoneSet] = useStateApp(() => new Set(saved?.doneSet || []));
 
   const [running, setRunning] = useStateApp(false);
-  const [remaining, setRemaining] = useStateApp(stages[0].sec);
+  const initRemaining = (() => {
+    if (saved?.remaining > 0) return saved.remaining;
+    const si = saved?.stageIdx ?? 0;
+    const ss = saved?.stages || DEFAULT_STAGES;
+    return (ss[si] || ss[0]).sec;
+  })();
+  const [remaining, setRemaining] = useStateApp(initRemaining);
   const deadlineRef = useRefApp(null);
-  const remainRef = useRefApp(stages[0].sec);
+  const remainRef = useRefApp(initRemaining);
   const firedRef = useRefApp(new Set());
   const [banner, setBanner] = useStateApp(null);
   const [timeUp, setTimeUp] = useStateApp(false);
@@ -930,9 +943,9 @@ function App() {
   const [flashOn, setFlashOn] = useStateApp(false);
 
   // appearance state
-  const [dark, setDark] = useStateApp(false);
-  const [layout, setLayout] = useStateApp('number');
-  const [warnSec, setWarnSec] = useStateApp(60);
+  const [dark, setDark] = useStateApp(() => saved?.dark ?? false);
+  const [layout, setLayout] = useStateApp(() => saved?.layout || 'number');
+  const [warnSec, setWarnSec] = useStateApp(() => saved?.warnSec ?? 60);
 
   const stage = stages[Math.min(stageIdx, stages.length - 1)] || stages[0];
   const person = people[Math.min(personIdx, people.length - 1)] || people[0];
@@ -1076,6 +1089,22 @@ function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [view, running, timeUp, alarmOn, settings.muted, personIdx, stageIdx, remaining]);
+
+  // ── Persist session to localStorage (debounced 500ms) ──
+  useEffectApp(() => {
+    const id = setTimeout(() => {
+      try {
+        localStorage.setItem(LS_KEY, JSON.stringify({
+          stages, people, settings, personIdx, stageIdx,
+          remaining: remainRef.current,
+          doneSet: Array.from(doneSet),
+          dark, layout, warnSec,
+          view: view === 'full' ? 'run' : view,
+        }));
+      } catch {}
+    }, 500);
+    return () => clearTimeout(id);
+  }, [stages, people, settings, personIdx, stageIdx, doneSet, dark, layout, warnSec, view]);
 
   const ctl = {
     person, personIdx, peopleCount: people.length, people, doneSet,
