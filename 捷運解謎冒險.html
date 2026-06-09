@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>捷運解謎冒險 · 聲寶村莊</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0C0A1C; --bg-deep: #07060F; --bg-glow: #1B1240; --bg2: #120E2B;
+    --panel: #1A1440; --line: #382C73; --portal: #6A5ACD; --cyan: #00C8FF;
+    --gold: #FFD700; --danger: #FF4D6D; --ink: #ECEAFF; --muted: #8E86C4;
+    --fp: 'Press Start 2P', 'Noto Sans TC', monospace;
+    --fd: 'Noto Sans TC', system-ui, sans-serif;
+    --fm: ui-monospace, 'SF Mono', monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: radial-gradient(1200px 700px at 50% -10%, var(--bg-glow) 0%, transparent 60%), var(--bg-deep); font-family: var(--fd); color: var(--ink); -webkit-font-smoothing: antialiased; letter-spacing: 0.01em; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  #stage { transform-origin: center; }
+  .scroll::-webkit-scrollbar { width: 0; height: 0; }
+  .scroll { scrollbar-width: none; }
+  .placeholder-art { background: repeating-linear-gradient(45deg, rgba(106,90,205,.16) 0 10px, rgba(0,200,255,.07) 10px 20px), var(--bg2); border: 1px solid var(--line); }
+  .boss-bg { background: radial-gradient(700px 400px at 50% 30%, rgba(255,77,109,.16), transparent 70%), repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 2px, transparent 2px 4px), var(--bg); }
+  .victory-bg { background: radial-gradient(700px 500px at 50% 40%, rgba(255,215,0,.18), transparent 70%), var(--bg); }
+  .cam-feed { background: radial-gradient(500px 500px at 50% 45%, #16203a, #07060F), repeating-linear-gradient(0deg, rgba(0,200,255,.04) 0 3px, transparent 3px 6px); }
+  .podium-1 { box-shadow: 0 0 24px rgba(255,215,0,.45), inset 0 0 12px rgba(255,215,0,.15); }
+  .podium-2 { box-shadow: 0 0 14px rgba(192,192,192,.3); }
+  .podium-3 { box-shadow: 0 0 10px rgba(205,127,50,.3); }
+
+  @keyframes portalSpin { to { transform: rotate(360deg); } }
+  @keyframes portalPulse { 0%,100% { transform: scale(.92); opacity: .85; } 50% { transform: scale(1.06); opacity: 1; } }
+  @keyframes spark { 0%,100% { transform: translateY(0) scale(1); opacity: .4; } 50% { transform: translateY(-14px) scale(1.3); opacity: 1; } }
+  @keyframes nodePulse { 0% { transform: scale(.9); opacity: .8; } 100% { transform: scale(1.5); opacity: 0; } }
+  @keyframes scanMove { 0% { top: 6px; } 50% { top: calc(100% - 9px); } 100% { top: 6px; } }
+  @keyframes recBlink { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
+  @keyframes qrFound { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+  @keyframes bossIdle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes bossHit { 0% { transform: translateX(0); } 25% { transform: translateX(-9px); filter: brightness(2.5); } 75% { transform: translateX(9px); } 100% { transform: translateX(0); } }
+  @keyframes weakGlow { 0%,100% { filter: brightness(1.1); } 50% { filter: brightness(1.5); } }
+  @keyframes weakFlash { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  @keyframes dmgFloat { 0% { transform: translateY(0) scale(.6); opacity: 0; } 20% { opacity: 1; transform: translateY(-6px) scale(1.15); } 100% { transform: translateY(-60px) scale(1); opacity: 0; } }
+  @keyframes confettiFall { to { transform: translateY(700px) rotate(540deg); opacity: .3; } }
+  @keyframes sigilDrop { 0% { transform: translateY(-40px) scale(.4); opacity: 0; } 60% { transform: translateY(8px) scale(1.15); opacity: 1; } 100% { transform: translateY(0) scale(1); } }
+  @keyframes overlayIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes storyIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes caretBlink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes gateShake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  @keyframes iosLock { 0%,100% { transform: rotate(0deg); } 30%,60% { transform: rotate(8deg); } 15%,45%,75% { transform: rotate(-8deg); } }
+
+  .portal-ring { will-change: transform; }
+  .portal-spark { will-change: transform; }
+  .node-pulse { animation: nodePulse 1.8s ease-out infinite; }
+  .scan-line { animation: scanMove 2s ease-in-out infinite; }
+  .rec-dot { animation: recBlink 1s steps(1) infinite; }
+  .qr-found { animation: qrFound .4s cubic-bezier(.2,.9,.3,1.4); }
+  .boss-sprite { animation: bossIdle 2.6s ease-in-out infinite; }
+  .boss-hit { animation: bossHit .18s steps(2); }
+  .boss-weak { animation: weakGlow .5s ease-in-out infinite; }
+  .weak-flash { animation: weakFlash .6s steps(2) infinite; }
+  .dmg-float { animation: dmgFloat .9s ease-out forwards; pointer-events: none; }
+  .confetti { animation: confettiFall 2.4s linear infinite; }
+  .sigil-drop { animation: sigilDrop .7s cubic-bezier(.2,.9,.3,1.3); }
+  .overlay-enter { animation: overlayIn .28s cubic-bezier(.2,.8,.2,1); }
+  .story-line { animation: storyIn .4s ease both; }
+  .toast-in { animation: toastIn .3s cubic-bezier(.2,.9,.3,1.2); }
+  .typewriter-caret { display: inline-block; width: 7px; height: 1em; vertical-align: text-bottom; background: var(--cyan); margin-left: 3px; animation: caretBlink .8s steps(1) infinite; }
+  .chapter-tab { transition: all .2s ease; }
+  .chapter-tab:hover { transform: translateY(-1px); }
+  [class*="pixel"] { line-height: 1 !important; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: .001s !important; animation-iteration-count: 1 !important; } }
+  body.no-fx *, body.no-fx *::before, body.no-fx *::after { animation: none !important; }
+
+  /* iOS device frame */
+  .ios-device {
+    width: 390px; height: 844px;
+    background: #1a1a1e;
+    border-radius: 54px;
+    position: relative;
+    box-shadow: 0 0 0 2px #3a3a3e, 0 0 0 6px #1a1a1e, 0 30px 80px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.08);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .ios-screen {
+    flex: 1; overflow: hidden; position: relative;
+    background: var(--bg-deep);
+    margin: 14px 4px 4px;
+    border-radius: 42px;
+    display: flex; flex-direction: column;
+  }
+  .ios-pill {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 34px; background: #000;
+    border-radius: 20px; z-index: 50;
+  }
+</style>
+</head>
+<body>
+<div id="stage"><div id="root"></div></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script>
+// ── 遊戲資料 ─────────────────────────────────────────────────
+const STATIONS = [
+  { code:'R28', name:'淡水', romaji:'Tamsui', chapter:'第一章', chapterTitle:'衛道士之試煉', element:'秩序', elemColor:'#9D7BFF', bossId:'arbiter',
+    task:{ title:'秩序之鎖', desc:'在淡水站找到刻有古代符文的閘門石碑，依照符文順序排列才能開啟通往異界的傳送節點。', hint:'符文的順序藏在月台編號的奇偶規律裡。', points:120, photo:'拍下 R28 站名牌與隊伍合照', timeLimit:900 } },
+  { code:'R27', name:'紅樹林', romaji:'Hongshulin', chapter:'第二章', chapterTitle:'凋零之侵蝕', element:'凋零', elemColor:'#6BBF8A', bossId:'withered',
+    task:{ title:'枯朽的回聲', desc:'濕地的瘴氣正在腐蝕能量碎片。蒐集三段被遮蔽的音節，組成驅散凋零的咒語。', hint:'咒語的三個音節分別藏在生態步道的三塊解說牌上。', points:150, photo:'拍下紅樹林生態解說牌', timeLimit:1200 } },
+  { code:'R26', name:'竹圍', romaji:'Zhuwei', chapter:'第三章', chapterTitle:'爆裂之試煉', element:'爆裂', elemColor:'#FF8A4D', bossId:'scorch',
+    task:{ title:'焦響獸的逆鱗', desc:'焦響獸潛伏在站外的能量裂縫。掃描沿途的能量結晶 QR，解析牠的攻擊節奏，找出弱點視窗。', hint:'焦響獸每次嘶吼後會有 3 秒硬直，那就是反擊的機會。', points:180, photo:'拍下竹圍站外的指定裝置藝術', timeLimit:1500 } },
+  { code:'R25', name:'關渡', romaji:'Guandu', chapter:'第四章', chapterTitle:'潮汐的迷宮', element:'潮汐', elemColor:'#4DA6FF', bossId:'tideling',
+    task:{ title:'潮汐密語', desc:'潮汐幻影用漲退的水位封印了線索。在退潮的窗口找到顯露的符號，逆推座標。', hint:'注意候車資訊看板上的時刻數字。', points:200, photo:'拍下關渡站的水文意象牆', timeLimit:1500 } },
+  { code:'R24', name:'忠義', romaji:'Zhongyi', chapter:'第五章', chapterTitle:'機械哨衛', element:'機械', elemColor:'#C9CDD6', bossId:'sentinel',
+    task:{ title:'齒輪的審問', desc:'機械哨衛守著能量核心的外環。破解它的邏輯謎題序列，才能通過最後的防線。', hint:'齒輪的轉向決定了密碼的進位方式。', points:220, photo:'拍下忠義站月台全景', timeLimit:1800 } },
+  { code:'R22', name:'北投', romaji:'Beitou', chapter:'終章', chapterTitle:'核心修復，回家', element:'終焉', elemColor:'#FFD700', bossId:'void', isFinal:true,
+    task:{ title:'能量核心', desc:'集齊六枚印記碎片，在北投的核心祭壇重組能量核心，擊敗虛空女皇，開啟回家的傳送門。', hint:'六枚印記的排列對應你一路走來的章節順序。', points:300, photo:'集齊六印記後拍下核心重組瞬間', timeLimit:2400 } },
+];
+
+const BOSSES = {
+  arbiter:  { name:'鐵律審判官', en:'THE ARBITER',    sigil:'秩序印記', sigilColor:'#9D7BFF', maxHp:1200, story:'異界最古老的守衛，以絕對的秩序審判一切混亂。它的盾牌由無數規則疊成，唯有打破它自己的節奏才能撼動。', skills:['法典壓制','秩序之盾','審判光束'], weakness:'反覆無常的攻擊節奏' },
+  withered: { name:'枯朽虛王',   en:'WITHERED KING',  sigil:'凋零印記', sigilColor:'#6BBF8A', maxHp:1600, story:'由濕地瘴氣凝聚而成的腐朽之王，所到之處生機盡失。它害怕完整而清亮的聲音。', skills:['腐蝕觸手','凋零光環','瘴氣爆發'], weakness:'完整的咒語音節' },
+  scorch:   { name:'焦響獸',     en:'SCORCH BEAST',   sigil:'爆裂印記', sigilColor:'#FF8A4D', maxHp:2000, story:'潛伏在能量裂縫中的爆裂之獸，靠近就會自爆。它的嘶吼是攻擊的前奏，也是破綻的訊號。', skills:['過載自爆','焦灼衝刺','裂地嘶吼'], weakness:'嘶吼後的 3 秒硬直' },
+  tideling: { name:'潮汐幻影',   en:'THE TIDELING',   sigil:'潮汐印記', sigilColor:'#4DA6FF', maxHp:2400, story:'隨潮水漲退而現形的幽影，用變幻的水位掩蓋真身。退潮的瞬間，是它最脆弱的時刻。', skills:['漲潮淹沒','迷霧幻象','逆流漩渦'], weakness:'退潮顯露的本體' },
+  sentinel: { name:'機械哨衛',   en:'THE SENTINEL',   sigil:'機械印記', sigilColor:'#C9CDD6', maxHp:2800, story:'守護核心外環的精密造物，由純粹的邏輯驅動。一旦它的運算迴圈被打亂，防線便會崩解。', skills:['雷射巡防','邏輯鎖鏈','過載防護罩'], weakness:'矛盾的邏輯輸入' },
+  void:     { name:'虛空女皇',   en:'VOID EMPRESS',   sigil:'終焉印記', sigilColor:'#FFD700', maxHp:4000, story:'吞噬了能量核心的終焉之主，掌控著回家的傳送門。唯有集齊六枚印記的勇者，才有資格挑戰她。', skills:['虛空吞噬','終焉領域','崩壞之觸'], weakness:'六印記共鳴' },
+};
+
+const STORY = [
+  { id:'prologue', chapter:'序章', title:'墜落異界', lines:[
+    '一道紫色的光從捷運月台的縫隙裡裂開。',
+    '還沒反應過來，你和隊友就被吸進了傳送門——',
+    '醒來時，腳下是一座由方塊堆成的村莊：聲寶村莊。',
+    '天空懸著一顆碎裂的能量核心，六道封印鎖住了回家的路。',
+    '一個像素化的村民走近：「勇者啊，沿著鐵軌前進，擊敗六大守衛，集齊印記，核心才能重啟。」',
+  ]},
+  { id:'ch2', chapter:'中段', title:'鐵軌的呼喚', lines:[
+    '每一站都散發著不同元素的能量波動。',
+    '你的異界羅盤在口袋裡震動——前方有守衛的氣息。',
+    '「先去淡水，秩序印記藏在那裡。」隊友說。',
+    '列車緩緩進站，時間開始倒數……',
+  ]},
+];
+
+const ACHIEVEMENTS = [
+  { id:'arrival',   name:'初入異界',    desc:'完成序章，踏入聲寶村莊',   icon:'portal', unlocked:true },
+  { id:'firstblood',name:'首勝守衛',    desc:'擊敗第一位 Boss',           icon:'sword',  unlocked:true },
+  { id:'slayer',    name:'Boss Slayer', desc:'累計擊敗 3 位 Boss',         icon:'skull',  unlocked:false, progress:2, total:3 },
+  { id:'speedrun',  name:'極速通關',    desc:'單一關卡 5 分鐘內完成',     icon:'bolt',   unlocked:true },
+  { id:'teamwork',  name:'最佳合作',    desc:'全隊同時打卡同一站',        icon:'team',   unlocked:false },
+  { id:'explorer',  name:'捷運探險王',  desc:'走完全部六站',              icon:'map',    unlocked:false, progress:2, total:6 },
+];
+
+const LEADERBOARD = [
+  { rank:1, team:'烈焰小隊', soul:2840, sigils:4, color:'#FF8A4D', you:false },
+  { rank:2, team:'紫晶小隊', soul:2610, sigils:3, color:'#9D7BFF', you:true  },
+  { rank:3, team:'碧波小隊', soul:2480, sigils:3, color:'#4DA6FF', you:false },
+  { rank:4, team:'金芒小隊', soul:2150, sigils:2, color:'#FFD700', you:false },
+  { rank:5, team:'青藤小隊', soul:1990, sigils:2, color:'#6BBF8A', you:false },
+  { rank:6, team:'銀齒小隊', soul:1720, sigils:1, color:'#C9CDD6', you:false },
+];
+
+const INDIV_LB = [
+  { rank:1, name:'阿哲', team:'紫晶小隊', soul:720, color:'#9D7BFF', you:false },
+  { rank:2, name:'柚子', team:'紫晶小隊', soul:540, color:'#9D7BFF', you:true  },
+  { rank:3, name:'小宇', team:'烈焰小隊', soul:520, color:'#FF8A4D', you:false },
+  { rank:4, name:'欣欣', team:'碧波小隊', soul:480, color:'#4DA6FF', you:false },
+  { rank:5, name:'大胖', team:'烈焰小隊', soul:460, color:'#FF8A4D', you:false },
+];
+
+const PLAYER = { name:'柚子', level:7, team:'紫晶小隊', teamColor:'#9D7BFF', soul:2610, rank:2, ownedSigils:['arbiter','withered'] };
+
+// 初始站點狀態存 localStorage
+function loadState() {
+  try { return JSON.parse(localStorage.getItem('puren_game_v1') || 'null'); } catch { return null; }
+}
+function saveState(s) {
+  try { localStorage.setItem('puren_game_v1', JSON.stringify(s)); } catch {}
+}
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem('puren_prefs_v1') || '{}'); } catch { return {}; }
+}
+function savePrefs(p) {
+  try { localStorage.setItem('puren_prefs_v1', JSON.stringify(p)); } catch {}
+}
+const DEFAULT_STATE = {
+  stationStatus: { R28:'cleared', R27:'cleared', R26:'active', R25:'locked', R24:'locked', R22:'locked' },
+  defeatedBosses: ['arbiter','withered'],
+  ownedSigils: ['arbiter','withered'],
+  soul: 2610,
+};
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── pixel clip-path ──────────────────────────────────────────
+const N = 6;
+const clip = (n = N) => `polygon(0 ${n}px,${n}px ${n}px,${n}px 0,calc(100% - ${n}px) 0,calc(100% - ${n}px) ${n}px,100% ${n}px,100% calc(100% - ${n}px),calc(100% - ${n}px) calc(100% - ${n}px),calc(100% - ${n}px) 100%,${n}px 100%,${n}px calc(100% - ${n}px),0 calc(100% - ${n}px))`;
+
+// ── PixelPanel ───────────────────────────────────────────────
+function PP({ children, color='var(--panel)', border='var(--line)', pad=14, glow, style={}, onClick, n=N }) {
+  return (
+    <div onClick={onClick} style={{ position:'relative', clipPath:clip(n), background:border, filter:glow?`drop-shadow(0 0 10px ${glow})`:'none', cursor:onClick?'pointer':'default', padding:2.5, display:'flex', ...style }}>
+      <div style={{ clipPath:clip(n-1<2?2:n-1), background:'var(--bg)', flex:1, minWidth:0, minHeight:0, display:'flex' }}>
+        <div style={{ background:color, padding:pad, flex:1, minWidth:0, minHeight:0, display:'flex', flexDirection:'column' }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── PixelButton ──────────────────────────────────────────────
+function PB({ children, onClick, kind='portal', size='md', full, disabled, style={} }) {
+  const T = { portal:{bg:'var(--portal)',edge:'#3D2E8A',txt:'#fff'}, cyan:{bg:'var(--cyan)',edge:'#0A6E94',txt:'#04222E'}, gold:{bg:'var(--gold)',edge:'#A6820A',txt:'#2A2100'}, danger:{bg:'var(--danger)',edge:'#9B1E3C',txt:'#fff'}, ghost:{bg:'rgba(255,255,255,.06)',edge:'rgba(255,255,255,.18)',txt:'var(--ink)'} };
+  const t = T[kind]||T.portal;
+  const pads = {sm:'8px 12px',md:'13px 18px',lg:'17px 22px'};
+  const fs = {sm:11,md:13,lg:15};
+  return (
+    <button onClick={disabled?undefined:onClick} disabled={disabled} style={{ position:'relative', clipPath:clip(5), border:'none', background:t.edge, padding:0, width:full?'100%':'auto', cursor:disabled?'not-allowed':'pointer', opacity:disabled?.45:1, fontFamily:'inherit', ...style }}>
+      <div style={{ clipPath:clip(4), background:t.bg, color:t.txt, margin:'2px 2px 4px', padding:pads[size], display:'flex', alignItems:'center', justifyContent:'center', gap:8, fontFamily:'var(--fp)', fontSize:fs[size], letterSpacing:.5, textShadow:(kind==='portal'||kind==='danger')?'1px 1px 0 rgba(0,0,0,.3)':'none' }}>
+        {children}
+      </div>
+    </button>
+  );
+}
+
+// ── HealthBar ────────────────────────────────────────────────
+function HealthBar({ hp, maxHp, color='var(--danger)', height=18 }) {
+  const pct = Math.max(0, Math.min(100, (hp/maxHp)*100));
+  return (
+    <div style={{ position:'relative', clipPath:clip(3), background:'#000', padding:2 }}>
+      <div style={{ position:'relative', height, background:'rgba(255,255,255,.06)', clipPath:clip(2), overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, width:pct+'%', background:`linear-gradient(180deg,${color},color-mix(in srgb,${color} 60%,#000))`, transition:'width .5s cubic-bezier(.2,.8,.2,1)', boxShadow:`0 0 10px ${color}` }} />
+        <div style={{ position:'absolute', inset:0, background:'repeating-linear-gradient(90deg,transparent 0 6px,rgba(0,0,0,.18) 6px 7px)' }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Chip ─────────────────────────────────────────────────────
+function Chip({ children, color='var(--cyan)', solid }) {
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontFamily:'var(--fp)', fontSize:8.5, letterSpacing:.5, padding:'5px 8px', clipPath:clip(3), background:solid?color:`color-mix(in srgb,${color} 18%,transparent)`, color:solid?'#0A0820':color, border:solid?'none':`1px solid color-mix(in srgb,${color} 45%,transparent)` }}>
+      {children}
+    </span>
+  );
+}
+
+// ── Sigil SVG ────────────────────────────────────────────────
+function Sigil({ color='#9D7BFF', size=30, dim }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" style={{ imageRendering:'pixelated', opacity:dim?.25:1, filter:dim?'none':`drop-shadow(0 0 4px ${color})` }}>
+      <rect x="7" y="1" width="2" height="2" fill={color}/>
+      <rect x="5" y="3" width="6" height="2" fill={color}/>
+      <rect x="3" y="5" width="2" height="6" fill={color}/>
+      <rect x="11" y="5" width="2" height="6" fill={color}/>
+      <rect x="6" y="6" width="4" height="4" fill={dim?color:'#fff'} opacity={dim?.5:.9}/>
+      <rect x="5" y="11" width="6" height="2" fill={color}/>
+      <rect x="7" y="13" width="2" height="2" fill={color}/>
+    </svg>
+  );
+}
+
+// ── Pixel Icons ───────────────────────────────────────────────
+function Icon({ name, size=22, color='currentColor' }) {
+  const c = color;
+  const paths = {
+    map:     <g fill={c}><rect x="2" y="3" width="4" height="14"/><rect x="7" y="2" width="4" height="14"/><rect x="14" y="3" width="4" height="14"/></g>,
+    scroll:  <g fill={c}><rect x="3" y="3" width="14" height="2"/><rect x="3" y="15" width="14" height="2"/><rect x="5" y="5" width="10" height="10" opacity=".5"/><rect x="7" y="8" width="6" height="1.5"/><rect x="7" y="11" width="4" height="1.5"/></g>,
+    sword:   <g fill={c}><rect x="9" y="2" width="2" height="9"/><rect x="6" y="11" width="8" height="2"/><rect x="8" y="13" width="4" height="4"/></g>,
+    trophy:  <g fill={c}><rect x="5" y="2" width="10" height="2"/><rect x="4" y="4" width="2" height="5"/><rect x="14" y="4" width="2" height="5"/><rect x="6" y="4" width="8" height="6"/><rect x="8" y="11" width="4" height="3"/><rect x="6" y="15" width="8" height="2"/></g>,
+    user:    <g fill={c}><rect x="7" y="3" width="6" height="6"/><rect x="4" y="11" width="12" height="6"/></g>,
+    qr:      <g fill={c}><rect x="2" y="2" width="6" height="6"/><rect x="4" y="4" width="2" height="2" fill="var(--bg)"/><rect x="12" y="2" width="6" height="6"/><rect x="14" y="4" width="2" height="2" fill="var(--bg)"/><rect x="2" y="12" width="6" height="6"/><rect x="4" y="14" width="2" height="2" fill="var(--bg)"/><rect x="12" y="12" width="3" height="3"/><rect x="16" y="15" width="2" height="3"/><rect x="12" y="16" width="3" height="2"/></g>,
+    skull:   <g fill={c}><rect x="4" y="3" width="12" height="9"/><rect x="6" y="6" width="2" height="2" fill="var(--bg)"/><rect x="12" y="6" width="2" height="2" fill="var(--bg)"/><rect x="5" y="12" width="3" height="3"/><rect x="9" y="12" width="2" height="3"/><rect x="12" y="12" width="3" height="3"/></g>,
+    bolt:    <g fill={c}><rect x="9" y="2" width="4" height="6"/><rect x="6" y="8" width="6" height="2"/><rect x="7" y="10" width="4" height="6"/></g>,
+    team:    <g fill={c}><rect x="3" y="4" width="4" height="4"/><rect x="2" y="9" width="6" height="5"/><rect x="11" y="4" width="4" height="4"/><rect x="10" y="9" width="6" height="5"/></g>,
+    portal:  <g fill={c}><rect x="6" y="2" width="6" height="2"/><rect x="4" y="4" width="2" height="10"/><rect x="12" y="4" width="2" height="10"/><rect x="6" y="14" width="6" height="2"/><rect x="7" y="6" width="4" height="6" opacity=".5"/></g>,
+    lock:    <g fill={c}><rect x="6" y="8" width="8" height="8"/><rect x="7" y="4" width="6" height="2"/><rect x="6" y="6" width="2" height="2"/><rect x="12" y="6" width="2" height="2"/><rect x="9" y="11" width="2" height="3" fill="var(--bg)"/></g>,
+    check:   <g fill={c}><rect x="7" y="12" width="2" height="2"/><rect x="5" y="10" width="2" height="2"/><rect x="9" y="10" width="2" height="2"/><rect x="11" y="8" width="2" height="2"/><rect x="13" y="6" width="2" height="2"/></g>,
+    clock:   <g fill={c}><rect x="6" y="3" width="6" height="2"/><rect x="4" y="5" width="2" height="8"/><rect x="14" y="5" width="2" height="8"/><rect x="6" y="13" width="6" height="2"/><rect x="9" y="6" width="1.5" height="4"/><rect x="9" y="9" width="3" height="1.5"/></g>,
+    star:    <g fill={c}><rect x="9" y="2" width="2" height="4"/><rect x="7" y="6" width="6" height="2"/><rect x="3" y="8" width="14" height="2"/><rect x="5" y="10" width="4" height="2"/><rect x="11" y="10" width="4" height="2"/><rect x="4" y="12" width="3" height="3"/><rect x="13" y="12" width="3" height="3"/></g>,
+    map2:    <g fill={c}><rect x="2" y="3" width="4" height="14"/><rect x="7" y="2" width="4" height="14"/><rect x="14" y="3" width="4" height="14"/></g>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 20 20" style={{ imageRendering:'pixelated', display:'block' }}>{paths[name]||paths.star}</svg>;
+}
+
+// ── Portal FX ────────────────────────────────────────────────
+function PortalFX({ size=240 }) {
+  return (
+    <div style={{ position:'relative', width:size, height:size, margin:'0 auto' }}>
+      {[0,1,2,3].map(i => (
+        <div key={i} className="portal-ring" style={{ position:'absolute', inset:i*(size*.07), borderRadius:'50%', border:`${4-i*.5}px solid color-mix(in srgb,var(--portal) ${70-i*12}%,transparent)`, boxShadow:`0 0 20px var(--portal),inset 0 0 16px var(--portal)`, animation:`portalSpin ${6+i*2}s linear infinite ${i%2?'reverse':''}` }} />
+      ))}
+      <div style={{ position:'absolute', inset:size*.3, borderRadius:'50%', background:'radial-gradient(circle,#fff 0%,var(--cyan) 25%,var(--portal) 60%,transparent 80%)', animation:'portalPulse 2.4s ease-in-out infinite' }} />
+      {[...Array(8)].map((_,i) => (
+        <div key={'s'+i} className="portal-spark" style={{ position:'absolute', width:7, height:7, background:i%2?'var(--cyan)':'var(--gold)', left:`${15+(i*11)%70}%`, top:`${10+(i*23)%75}%`, animation:`spark ${2+(i%3)}s ease-in-out infinite ${i*.3}s` }} />
+      ))}
+    </div>
+  );
+}
+
+// ── Portal Screen (splash) ────────────────────────────────────
+function PortalScreen({ onStart, onStory, onRank }) {
+  return (
+    <div style={{ minHeight:'100%', display:'flex', flexDirection:'column', padding:'60px 22px 30px', textAlign:'center', position:'relative', overflow:'hidden' }}>
+      <div style={{ fontFamily:'var(--fp)', fontSize:9, color:'var(--cyan)', letterSpacing:2, marginBottom:6, lineHeight:1 }}>SHENGBAO VILLAGE</div>
+      <PortalFX size={200} />
+      <div style={{ marginTop:16 }}>
+        <h1 style={{ fontFamily:'var(--fp)', fontSize:18, lineHeight:1.7, margin:0, color:'#fff', textShadow:'0 0 16px var(--portal),2px 2px 0 #2A1E6E' }}>異界傳送！</h1>
+        <div style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:21, color:'var(--ink)', marginTop:10, letterSpacing:1 }}>
+          聲寶村莊的<span style={{ color:'var(--gold)' }}>六大衛道守衛</span>
+        </div>
+        <p style={{ color:'var(--muted)', fontSize:13, lineHeight:1.7, margin:'12px 10px 0', fontWeight:500 }}>
+          打倒六大 Boss，修復能量核心，回家！沿著捷運鐵軌前進，集齊六枚印記碎片。
+        </p>
+      </div>
+      <div style={{ marginTop:'auto', display:'flex', flexDirection:'column', gap:11, paddingTop:24 }}>
+        <PB kind="portal" size="lg" full onClick={onStart}><Icon name="portal" size={18} /> 開始冒險</PB>
+        <div style={{ display:'flex', gap:10 }}>
+          <PB kind="ghost" full onClick={onStory}>查看劇情</PB>
+          <PB kind="ghost" full onClick={onRank}>排行榜</PB>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Map Screen ───────────────────────────────────────────────
+function MapScreen({ stationStatus, defeatedBosses, ownedSigils, onStation }) {
+  const cleared = Object.values(stationStatus).filter(s=>s==='cleared').length;
+  return (
+    <div>
+      <div style={{ padding:'6px 16px 14px' }}>
+        <PP pad={14} color="linear-gradient(135deg,rgba(106,90,205,.22),rgba(0,200,255,.08))" border="var(--portal)">
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div>
+              <div style={{ fontFamily:'var(--fp)', fontSize:8, color:'var(--cyan)', letterSpacing:1, lineHeight:1 }}>淡水信義線 · 異界鐵軌</div>
+              <div style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:17, color:'#fff', marginTop:4 }}>能量核心修復進度</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontFamily:'var(--fp)', fontSize:17, color:'var(--gold)', lineHeight:1 }}>{cleared}<span style={{ color:'var(--muted)', fontSize:12 }}>/6</span></div>
+              <div style={{ fontSize:10, color:'var(--muted)', marginTop:4 }}>印記碎片</div>
+            </div>
+          </div>
+          <div style={{ marginTop:12, display:'flex', gap:6 }}>
+            {STATIONS.map(s => <Sigil key={s.code} color={s.elemColor} size={24} dim={!ownedSigils.includes(s.bossId)} />)}
+          </div>
+        </PP>
+      </div>
+      <div style={{ padding:'0 16px 20px' }}>
+        {STATIONS.map((s, i) => {
+          const status = stationStatus[s.code] || 'locked';
+          const cleared = status === 'cleared';
+          const active = status === 'active';
+          const locked = status === 'locked';
+          const dot = cleared ? s.elemColor : active ? 'var(--cyan)' : 'rgba(255,255,255,.22)';
+          return (
+            <div key={s.code} style={{ display:'flex', gap:14, position:'relative' }}>
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', width:46, flexShrink:0 }}>
+                <div style={{ position:'relative' }}>
+                  {active && <div className="node-pulse" style={{ position:'absolute', inset:-8, borderRadius:'50%', border:'2px solid var(--cyan)' }} />}
+                  <div style={{ width:38, height:38, clipPath:clip(5), background:dot, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:(cleared||active)?`0 0 14px ${dot}`:'none', border:'2px solid rgba(0,0,0,.4)' }}>
+                    {cleared ? <Icon name="check" size={20} color="#0A0820" /> : active ? <Icon name="sword" size={18} color="#04222E" /> : <Icon name="lock" size={18} color="rgba(255,255,255,.5)" />}
+                  </div>
+                </div>
+                {i < STATIONS.length-1 && <div style={{ width:5, flex:1, minHeight:38, background:cleared?`linear-gradient(180deg,${s.elemColor},${active?'var(--cyan)':'rgba(255,255,255,.15)'})`:'rgba(255,255,255,.12)', marginTop:3 }} />}
+              </div>
+              <div style={{ flex:1, paddingBottom:16 }}>
+                <PP pad={12} color={active?'rgba(0,200,255,.07)':locked?'rgba(255,255,255,.02)':'var(--panel)'}
+                  border={active?'var(--cyan)':locked?'rgba(255,255,255,.08)':'var(--line)'}
+                  glow={active?'rgba(0,200,255,.4)':undefined}
+                  onClick={locked?undefined:()=>onStation(s.code)}
+                  style={{ opacity:locked?.6:1 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+                    <span style={{ fontFamily:'var(--fp)', fontSize:11, color:s.elemColor, background:'rgba(0,0,0,.3)', padding:'3px 6px', clipPath:clip(3) }}>{s.code}</span>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:16, color:'var(--ink)' }}>{s.name}</div>
+                      <div style={{ fontSize:10, color:'var(--muted)', fontFamily:'var(--fp)', letterSpacing:.5, lineHeight:1.4 }}>{s.romaji.toUpperCase()}</div>
+                    </div>
+                    {!locked && <Icon name="qr" size={16} color="var(--muted)" />}
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:7, marginTop:9 }}>
+                    <Icon name="skull" size={14} color={defeatedBosses.includes(s.bossId)?'var(--muted)':'var(--danger)'} />
+                    <span style={{ fontSize:12, color:defeatedBosses.includes(s.bossId)?'var(--muted)':'var(--ink)', fontWeight:700, textDecoration:defeatedBosses.includes(s.bossId)?'line-through':'none' }}>{BOSSES[s.bossId].name}</span>
+                    {defeatedBosses.includes(s.bossId) ? <Chip color={s.elemColor}>已淨化</Chip> : active ? <Chip color="var(--cyan)" solid>進行中</Chip> : <Chip color="rgba(255,255,255,.3)">未解鎖</Chip>}
+                  </div>
+                </PP>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ display:'flex', gap:14, alignItems:'center', marginTop:-4 }}>
+          <div style={{ width:46, display:'flex', justifyContent:'center' }}><Icon name="portal" size={26} color="var(--portal)" /></div>
+          <div style={{ fontFamily:'var(--fp)', fontSize:9, color:'var(--muted)', letterSpacing:1 }}>回家的傳送門</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Story Screen ─────────────────────────────────────────────
+function StoryScreen() {
+  const [chIdx, setChIdx] = useState(0);
+  const [idx, setIdx] = useState(0);
+  const [typed, setTyped] = useState('');
+  const ch = STORY[chIdx];
+  const lines = ch.lines;
+  const cur = lines[idx];
+
+  useEffect(() => {
+    setTyped('');
+    let i = 0;
+    const t = setInterval(() => { i++; setTyped(cur.slice(0,i)); if(i>=cur.length) clearInterval(t); }, 28);
+    return () => clearInterval(t);
+  }, [chIdx, idx]);
+
+  const finished = typed.length >= cur.length;
+  const next = () => { if(!finished){setTyped(cur);return;} if(idx<lines.length-1) setIdx(i=>i+1); };
+  const prev = () => { if(idx>0) setIdx(i=>i-1); };
+
+  return (
+    <div style={{ padding:'6px 16px 24px', minHeight:'100%', display:'flex', flexDirection:'column', gap:14 }}>
+      {STORY.length > 1 && (
+        <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:2 }} className="scroll">
+          {STORY.map((c,i) => (
+            <button key={c.id} className="chapter-tab" onClick={()=>{setChIdx(i);setIdx(0);}} style={{ flexShrink:0, padding:'6px 10px', clipPath:clip(3), border:'none', cursor:'pointer', background:i===chIdx?'var(--portal)':'rgba(255,255,255,.04)', color:i===chIdx?'#fff':'var(--muted)', fontFamily:'var(--fp)', fontSize:9, lineHeight:1, letterSpacing:1 }}>{c.chapter}</button>
+          ))}
+        </div>
+      )}
+      <div>
+        <div style={{ fontFamily:'var(--fp)', fontSize:9, color:'var(--portal)', letterSpacing:1.5, lineHeight:1 }}>{ch.chapter}</div>
+        <h2 style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:24, color:'#fff', margin:'6px 0 0' }}>{ch.title}</h2>
+      </div>
+      <div className="placeholder-art" style={{ height:120, clipPath:clip(6), position:'relative', overflow:'hidden', flexShrink:0 }}>
+        <PortalFX size={100} />
+        <div style={{ position:'absolute', bottom:6, left:10, fontFamily:'var(--fm)', fontSize:9, color:'rgba(255,255,255,.45)' }}>[ 章節插畫 ]</div>
+        <div style={{ position:'absolute', top:8, right:10, fontFamily:'var(--fp)', fontSize:8, lineHeight:1, color:'var(--cyan)', letterSpacing:1 }}>{String(idx+1).padStart(2,'0')}/{String(lines.length).padStart(2,'0')}</div>
+      </div>
+      <PP pad={16} color="rgba(10,8,28,.7)" border="var(--gold)" style={{ flex:1, minHeight:130 }}>
+        <p style={{ margin:0, fontSize:15, lineHeight:1.9, color:'var(--ink)', fontWeight:500 }}>
+          {typed}{!finished && <span className="typewriter-caret" />}
+        </p>
+      </PP>
+      <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+        <button onClick={prev} disabled={idx===0} style={{ padding:'10px 12px', clipPath:clip(3), border:'none', cursor:idx===0?'not-allowed':'pointer', background:'rgba(255,255,255,.05)', color:idx===0?'rgba(255,255,255,.2)':'var(--muted)', fontFamily:'var(--fp)', fontSize:11, lineHeight:1 }}>◂</button>
+        <div style={{ flex:1, display:'flex', gap:3 }}>
+          {lines.map((_,i) => <div key={i} style={{ flex:1, height:4, background:i<=idx?'var(--cyan)':'rgba(255,255,255,.08)', clipPath:clip(1) }} />)}
+        </div>
+        {idx < lines.length-1
+          ? <PB kind="gold" onClick={next}>{finished?'繼續 ▸':'▸▸'}</PB>
+          : <PB kind="portal" onClick={()=>setIdx(0)}>↻ 重看</PB>}
+      </div>
+    </div>
+  );
+}
+
+// ── Task Screen ──────────────────────────────────────────────
+function TaskScreen({ code, stationStatus, onQR, onBoss, onClose }) {
+  const st = STATIONS.find(s=>s.code===code);
+  if(!st) return <div style={{ padding:40, color:'var(--muted)', textAlign:'center' }}>找不到站點<br/><PB kind="ghost" onClick={onClose} style={{marginTop:16}}>返回地圖</PB></div>;
+  const boss = BOSSES[st.bossId];
+  const status = stationStatus[code] || 'locked';
+  const cleared = status === 'cleared';
+  const [hint, setHint] = useState(false);
+  const [left, setLeft] = useState(st.task.timeLimit);
+  useEffect(() => {
+    if(cleared) return;
+    const t = setInterval(() => setLeft(l => l>0?l-1:0), 1000);
+    return () => clearInterval(t);
+  }, [cleared]);
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+  return (
+    <div style={{ minHeight:'100%', display:'flex', flexDirection:'column' }}>
+      <div style={{ position:'relative', padding:'14px 16px 18px', background:`linear-gradient(135deg,color-mix(in srgb,${st.elemColor} 30%,var(--bg)),var(--bg))`, overflow:'hidden' }}>
+        <div style={{ position:'absolute', inset:0, background:'repeating-linear-gradient(45deg,transparent 0 14px,rgba(255,255,255,.02) 14px 28px)' }} />
+        <button onClick={onClose} style={{ position:'relative', background:'none', border:'none', color:'var(--muted)', fontFamily:'var(--fp)', fontSize:10, cursor:'pointer', padding:0, marginBottom:12 }}>◂ 返回地圖</button>
+        <div style={{ position:'relative', display:'flex', alignItems:'center', gap:11 }}>
+          <span style={{ fontFamily:'var(--fp)', fontSize:13, color:'#fff', background:'rgba(0,0,0,.35)', padding:'6px 9px', clipPath:clip(4) }}>{st.code}</span>
+          <div>
+            <div style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:22, color:'#fff', lineHeight:1.1 }}>{st.name}站</div>
+            <div style={{ fontSize:11, color:'rgba(255,255,255,.7)' }}>{st.chapter} · {st.chapterTitle}</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding:'16px', display:'flex', flexDirection:'column', gap:14, flex:1 }}>
+        <div style={{ display:'flex', gap:12 }}>
+          <PP pad={11} color="rgba(10,8,28,.6)" border={left<120&&!cleared?'var(--danger)':'var(--line)'} style={{ flex:1 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+              <Icon name="clock" size={16} color={left<120&&!cleared?'var(--danger)':'var(--cyan)'} />
+              <span style={{ fontFamily:'var(--fp)', fontSize:8, color:'var(--muted)' }}>限時</span>
+            </div>
+            <div style={{ fontFamily:'var(--fp)', fontSize:18, color:cleared?'var(--muted)':'#fff', marginTop:6, lineHeight:1 }}>{cleared?'--:--':fmt(left)}</div>
+          </PP>
+          <PP pad={11} color="rgba(10,8,28,.6)" border="var(--line)" style={{ flex:1 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+              <Icon name="star" size={16} color="var(--gold)" />
+              <span style={{ fontFamily:'var(--fp)', fontSize:8, color:'var(--muted)' }}>魂力分</span>
+            </div>
+            <div style={{ fontFamily:'var(--fp)', fontSize:18, color:'var(--gold)', marginTop:6, lineHeight:1 }}>+{st.task.points}</div>
+          </PP>
+        </div>
+        <PP pad={16} color="var(--panel)" border="var(--gold)">
+          <Chip color={st.elemColor} solid>主線任務</Chip>
+          <h3 style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:18, color:'#fff', margin:'11px 0 8px' }}>{st.task.title}</h3>
+          <p style={{ margin:0, fontSize:13, lineHeight:1.75, color:'var(--ink)' }}>{st.task.desc}</p>
+          <div style={{ marginTop:14 }}>
+            {hint ? (
+              <div className="story-line" style={{ padding:12, clipPath:clip(4), background:'rgba(255,215,0,.1)', border:'1px solid rgba(255,215,0,.3)', display:'flex', gap:9 }}>
+                <span style={{ fontSize:16 }}>💡</span>
+                <span style={{ fontSize:13, lineHeight:1.6, color:'var(--gold)' }}>{st.task.hint}</span>
+              </div>
+            ) : (
+              <button onClick={()=>setHint(true)} style={{ width:'100%', background:'rgba(255,215,0,.08)', border:'1px dashed rgba(255,215,0,.4)', clipPath:clip(4), padding:11, color:'var(--gold)', fontFamily:'var(--fp)', fontSize:10, cursor:'pointer', lineHeight:1 }}>？ 解鎖提示（-20 分）</button>
+            )}
+          </div>
+        </PP>
+        <PP pad={12} color="rgba(255,255,255,.02)" border="var(--line)">
+          <div style={{ fontFamily:'var(--fp)', fontSize:8, color:'var(--cyan)', marginBottom:8, lineHeight:1 }}>📷 拍照任務</div>
+          <div style={{ fontSize:12, color:'var(--muted)' }}>{st.task.photo}</div>
+        </PP>
+        <div style={{ marginTop:'auto', display:'flex', flexDirection:'column', gap:11, paddingTop:6 }}>
+          <PB kind="cyan" size="lg" full onClick={()=>onQR(code)}><Icon name="qr" size={18} color="#04222E" /> 掃描 QR 解鎖線索</PB>
+          <PB kind={cleared?'ghost':'danger'} size="lg" full onClick={()=>onBoss(st.bossId,code)}>
+            <Icon name="skull" size={18} color={cleared?'var(--ink)':'#fff'} /> {cleared?`回顧 ${boss.name}`:`挑戰 ${boss.name}`}
+          </PB>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── QR Screen ────────────────────────────────────────────────
+function QRScreen({ code, onClose, onUnlocked }) {
+  const st = code ? STATIONS.find(s=>s.code===code) : null;
+  const [phase, setPhase] = useState('scan');
+  useEffect(() => {
+    if(phase!=='scan') return;
+    const t = setTimeout(()=>setPhase('found'), 2600);
+    return ()=>clearTimeout(t);
+  }, [phase]);
+  return (
+    <div style={{ minHeight:'100%', background:'#000', position:'relative', display:'flex', flexDirection:'column' }}>
+      <div className="cam-feed" style={{ flex:1, position:'relative', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <button onClick={onClose} style={{ position:'absolute', top:16, left:16, zIndex:5, background:'rgba(0,0,0,.5)', border:'1px solid rgba(255,255,255,.2)', clipPath:clip(4), color:'#fff', fontFamily:'var(--fp)', fontSize:10, padding:'8px 12px', cursor:'pointer', lineHeight:1 }}>✕ 關閉</button>
+        <div style={{ position:'absolute', top:18, right:16, fontFamily:'var(--fp)', fontSize:8, color:'var(--cyan)', display:'flex', alignItems:'center', gap:6 }}>
+          <span className="rec-dot" style={{ width:8, height:8, background:'var(--danger)', borderRadius:'50%', display:'inline-block' }} /> SCAN MODE
+        </div>
+        {phase==='scan' ? (
+          <>
+            <div style={{ position:'relative', width:220, height:220 }}>
+              {[['tl',0,0],['tr',0,'auto'],['bl','auto',0],['br','auto','auto']].map(([k,top,left])=>(
+                <div key={k} style={{ position:'absolute', top:top===0?0:'auto', bottom:top==='auto'?0:'auto', left:left===0?0:'auto', right:left==='auto'?0:'auto', width:34, height:34, borderTop:top===0?'4px solid var(--cyan)':'none', borderBottom:top==='auto'?'4px solid var(--cyan)':'none', borderLeft:left===0?'4px solid var(--cyan)':'none', borderRight:left==='auto'?'4px solid var(--cyan)':'none', boxShadow:'0 0 10px var(--cyan)' }} />
+              ))}
+              <div className="scan-line" style={{ position:'absolute', left:6, right:6, height:3, background:'var(--cyan)', boxShadow:'0 0 12px var(--cyan)' }} />
+              <div style={{ position:'absolute', inset:50, opacity:.25, display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:3 }}>
+                {[...Array(36)].map((_,i)=><div key={i} style={{ background:(i*7)%3?'#fff':'transparent' }} />)}
+              </div>
+            </div>
+            <div style={{ position:'absolute', bottom:90, textAlign:'center', width:'100%' }}>
+              <div style={{ fontFamily:'var(--fp)', fontSize:11, color:'#fff', lineHeight:1 }}>對準能量結晶 QR…</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,.5)', marginTop:8 }}>掃描{st?`「${st.name}站」`:''}的線索</div>
+            </div>
+          </>
+        ) : (
+          <div className="qr-found" style={{ textAlign:'center', padding:24 }}>
+            <div style={{ filter:'drop-shadow(0 0 16px var(--cyan))' }}><Sigil color="var(--cyan)" size={70} /></div>
+            <div style={{ fontFamily:'var(--fp)', fontSize:13, color:'var(--cyan)', marginTop:18, lineHeight:1 }}>線索已解鎖！</div>
+            <PP pad={15} color="rgba(0,200,255,.08)" border="var(--cyan)" style={{ marginTop:18, textAlign:'left' }}>
+              <div style={{ fontFamily:'var(--fp)', fontSize:8, color:'var(--cyan)', marginBottom:8, lineHeight:1 }}>解碼訊息</div>
+              <p style={{ margin:0, fontSize:13, lineHeight:1.7, color:'var(--ink)' }}>{st?st.task.hint:'一段被加密的座標，指向下一個封印節點。'}</p>
+            </PP>
+          </div>
+        )}
+      </div>
+      <div style={{ padding:16, paddingBottom:24, background:'var(--bg)' }}>
+        {phase==='scan'
+          ? <PB kind="cyan" size="lg" full onClick={()=>setPhase('found')}><Icon name="qr" size={18} color="#04222E" /> 模擬掃描到 QR</PB>
+          : <PB kind="portal" size="lg" full onClick={()=>onUnlocked?onUnlocked():onClose()}>收下線索，繼續冒險</PB>}
+      </div>
+    </div>
+  );
+}
+
+// ── Boss Screen ──────────────────────────────────────────────
+function BossScreen({ bossId, code, defeatedBosses, onClose, onVictory }) {
+  const boss = BOSSES[bossId];
+  const st = code ? STATIONS.find(s=>s.code===code) : null;
+  if(!boss) return <div style={{ padding:40, color:'var(--muted)', textAlign:'center' }}>找不到守衛<br/><PB kind="ghost" onClick={onClose} style={{marginTop:16}}>撤退</PB></div>;
+  const alreadyDefeated = defeatedBosses.includes(bossId);
+  const startHp = alreadyDefeated ? Math.round(boss.maxHp*.6) : boss.maxHp;
+  const [phase, setPhase] = useState('intro');
+  const [hp, setHp] = useState(startHp);
+  const [combo, setCombo] = useState(0);
+  const [weak, setWeak] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [floats, setFloats] = useState([]);
+  const [bossAct, setBossAct] = useState(boss.skills[0]);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    if(phase!=='battle') return;
+    let alive = true; const timers = [];
+    const loop = () => {
+      if(!alive) return;
+      setBossAct(boss.skills[Math.floor(Math.random()*boss.skills.length)]);
+      setWeak(false);
+      const t1 = setTimeout(() => {
+        if(!alive) return;
+        setWeak(true); setBossAct('破綻！');
+        const t2 = setTimeout(() => { if(alive) loop(); }, 2200);
+        timers.push(t2);
+      }, 1800+Math.random()*1200);
+      timers.push(t1);
+    };
+    loop();
+    return () => { alive=false; timers.forEach(clearTimeout); };
+  }, [phase]);
+
+  const hit = () => {
+    if(phase!=='battle') return;
+    const crit = weak;
+    const dmg = crit ? 220+Math.floor(Math.random()*120) : 70+Math.floor(Math.random()*60);
+    const id = ++idRef.current;
+    setFloats(f=>[...f,{id,dmg,crit,x:30+Math.random()*40}]);
+    setTimeout(()=>setFloats(f=>f.filter(x=>x.id!==id)),900);
+    setShake(true); setTimeout(()=>setShake(false),180);
+    setCombo(c=>crit?c+1:0);
+    if(weak) setWeak(false);
+    setHp(h=>{ const nh=Math.max(0,h-dmg); if(nh===0) setTimeout(()=>setPhase('victory'),600); return nh; });
+  };
+
+  if(phase==='intro') return (
+    <div className="boss-bg" style={{ minHeight:'100%', display:'flex', flexDirection:'column', padding:'20px 18px 26px', position:'relative', overflow:'hidden' }}>
+      <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--muted)', fontFamily:'var(--fp)', fontSize:10, cursor:'pointer', alignSelf:'flex-start', padding:0, lineHeight:1 }}>◂ 撤退</button>
+      <div style={{ textAlign:'center', marginTop:14 }}>
+        <div style={{ fontFamily:'var(--fp)', fontSize:9, color:'var(--danger)', letterSpacing:2, lineHeight:1 }}>BOSS BATTLE</div>
+        {st && <div style={{ fontSize:11, color:'var(--muted)', marginTop:6 }}>{st.code} {st.name}站 · {st.chapterTitle}</div>}
+      </div>
+      <div style={{ margin:'20px auto 6px', position:'relative' }}>
+        <div className="placeholder-art boss-sprite" style={{ width:172, height:172, clipPath:clip(8), display:'flex', alignItems:'center', justifyContent:'center', position:'relative', boxShadow:`0 0 40px color-mix(in srgb,${boss.sigilColor} 50%,transparent)` }}>
+          <Icon name="skull" size={84} color={boss.sigilColor} />
+          <div style={{ position:'absolute', bottom:7, fontFamily:'var(--fm)', fontSize:9, color:'rgba(255,255,255,.45)' }}>[ BOSS 立繪 ]</div>
+        </div>
+      </div>
+      <h2 style={{ fontFamily:'var(--fp)', fontSize:18, color:'#fff', textAlign:'center', margin:'8px 0 2px', textShadow:`0 0 16px ${boss.sigilColor}`, lineHeight:1.5 }}>{boss.name}</h2>
+      <div style={{ fontFamily:'var(--fp)', fontSize:9, color:boss.sigilColor, textAlign:'center', letterSpacing:2, lineHeight:1 }}>{boss.en}</div>
+      <PP pad={14} color="rgba(10,8,28,.7)" border="var(--line)" style={{ marginTop:16 }}>
+        <p style={{ margin:0, fontSize:13, lineHeight:1.75, color:'var(--ink)' }}>{boss.story}</p>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:7, marginTop:12 }}>
+          {boss.skills.map(s=><Chip key={s} color="var(--danger)">{s}</Chip>)}
+        </div>
+        <div style={{ marginTop:12, display:'flex', alignItems:'center', gap:8, padding:'9px 11px', clipPath:clip(4), background:'rgba(255,215,0,.08)' }}>
+          <span style={{ fontSize:14 }}>🎯</span>
+          <span style={{ fontSize:12, color:'var(--gold)' }}>弱點：{boss.weakness}</span>
+        </div>
+      </PP>
+      <div style={{ marginTop:'auto', paddingTop:18 }}>
+        <PB kind="danger" size="lg" full onClick={()=>{setHp(startHp);setCombo(0);setPhase('battle');}}>
+          <Icon name="sword" size={18} /> {alreadyDefeated?'重溫戰鬥':'開始戰鬥！'}
+        </PB>
+      </div>
+    </div>
+  );
+
+  if(phase==='victory') return (
+    <div className="boss-bg victory-bg" style={{ minHeight:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, textAlign:'center', position:'relative', overflow:'hidden' }}>
+      {[...Array(14)].map((_,i)=>(
+        <div key={i} className="confetti" style={{ position:'absolute', width:8, height:8, background:[boss.sigilColor,'var(--gold)','var(--cyan)'][i%3], left:`${(i*13)%100}%`, top:'-10px', animationDelay:`${i*.12}s` }} />
+      ))}
+      <div style={{ fontFamily:'var(--fp)', fontSize:22, color:'var(--gold)', textShadow:'0 0 20px var(--gold)', lineHeight:1 }}>VICTORY!</div>
+      <div style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:17, color:'#fff', marginTop:10 }}>{boss.name} 已被淨化</div>
+      <div className="sigil-drop" style={{ margin:'24px 0 6px' }}><Sigil color={boss.sigilColor} size={90} /></div>
+      <div style={{ fontFamily:'var(--fp)', fontSize:11, color:boss.sigilColor, lineHeight:1 }}>獲得「{boss.sigil}」</div>
+      <PP pad={14} color="rgba(10,8,28,.7)" border="var(--gold)" style={{ marginTop:22, width:'100%' }}>
+        <div style={{ display:'flex', justifyContent:'space-around' }}>
+          {[['魂力分',`+${st?st.task.points:180}`,'var(--gold)'],['最高連擊',`x${Math.max(1,combo)}`,'var(--cyan)'],['印記碎片','+1',boss.sigilColor]].map(([l,v,c])=>(
+            <div key={l}>
+              <div style={{ fontFamily:'var(--fp)', fontSize:15, color:c, lineHeight:1 }}>{v}</div>
+              <div style={{ fontSize:10, color:'var(--muted)', marginTop:5 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </PP>
+      <div style={{ marginTop:22, width:'100%', display:'flex', flexDirection:'column', gap:10 }}>
+        <PB kind="gold" size="lg" full onClick={()=>onVictory(bossId)}>領取獎勵，前往下一站</PB>
+        <PB kind="ghost" full onClick={onClose}>返回地圖</PB>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="boss-bg" style={{ minHeight:'100%', display:'flex', flexDirection:'column', position:'relative', overflow:'hidden' }}>
+      <div style={{ padding:'14px 16px 10px' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:7 }}>
+          <span style={{ fontFamily:'var(--fp)', fontSize:12, color:'#fff', textShadow:`0 0 10px ${boss.sigilColor}`, lineHeight:1 }}>{boss.name}</span>
+          <span style={{ fontFamily:'var(--fp)', fontSize:11, color:'var(--danger)', lineHeight:1 }}>{hp}<span style={{ color:'var(--muted)', fontSize:9 }}>/{boss.maxHp}</span></span>
+        </div>
+        <HealthBar hp={hp} maxHp={boss.maxHp} height={20} />
+        <div style={{ textAlign:'center', marginTop:12, height:22 }}>
+          <span className={weak?'weak-flash':''} style={{ fontFamily:'var(--fp)', fontSize:10, color:weak?'var(--gold)':'rgba(255,255,255,.65)', letterSpacing:1, lineHeight:1 }}>
+            {weak?'⚡ 破綻出現！全力攻擊！':`${boss.name}使用「${bossAct}」`}
+          </span>
+        </div>
+      </div>
+      <div style={{ flex:1, position:'relative', display:'flex', alignItems:'center', justifyContent:'center' }}>
+        {floats.map(f=>(
+          <div key={f.id} className="dmg-float" style={{ position:'absolute', top:'38%', left:f.x+'%', fontFamily:'var(--fp)', fontSize:f.crit?21:14, color:f.crit?'var(--gold)':'#fff', textShadow:'2px 2px 0 #000', zIndex:6, lineHeight:1 }}>
+            {f.crit?`會心 ${f.dmg}!`:f.dmg}
+          </div>
+        ))}
+        <div onClick={hit} className={`boss-sprite ${shake?'boss-hit':''} ${weak?'boss-weak':''}`} style={{ cursor:'pointer', position:'relative' }}>
+          <div className="placeholder-art" style={{ width:182, height:182, clipPath:clip(8), display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 ${weak?50:30}px color-mix(in srgb,${weak?'var(--gold)':boss.sigilColor} 55%,transparent)` }}>
+            <Icon name="skull" size={94} color={weak?'var(--gold)':boss.sigilColor} />
+          </div>
+        </div>
+      </div>
+      <div style={{ padding:'10px 16px 26px' }}>
+        {combo>1 && <div style={{ textAlign:'center', marginBottom:10, fontFamily:'var(--fp)', fontSize:13, color:'var(--cyan)', textShadow:'0 0 10px var(--cyan)', lineHeight:1 }}>{combo} COMBO!</div>}
+        <PB kind={weak?'gold':'danger'} size="lg" full onClick={hit}>
+          <Icon name="sword" size={20} color={weak?'#2A2100':'#fff'} /> {weak?'會心一擊！':'攻擊'}
+        </PB>
+        <div style={{ textAlign:'center', marginTop:10, fontSize:11, color:'var(--muted)' }}>看準 Boss「破綻」的瞬間連點，造成會心傷害</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rank Screen ──────────────────────────────────────────────
+function RankScreen() {
+  const [tab, setTab] = useState('team');
+  const data = tab==='team' ? LEADERBOARD : INDIV_LB;
+  return (
+    <div style={{ padding:'6px 16px 24px' }}>
+      <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+        {[['team','隊伍排行'],['indiv','個人排行']].map(([k,label])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{ flex:1, clipPath:clip(4), border:'none', cursor:'pointer', padding:'10px', fontFamily:'var(--fp)', fontSize:10, background:tab===k?'var(--portal)':'rgba(255,255,255,.05)', color:tab===k?'#fff':'var(--muted)', lineHeight:1 }}>{label}</button>
+        ))}
+      </div>
+      <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'center', gap:10, marginBottom:22 }}>
+        {[data[1],data[0],data[2]].map((row,i)=>{
+          if(!row) return <div key={i} style={{ flex:1 }} />;
+          const podH = [86,120,62][i];
+          const medal = ['#C0C0C0','var(--gold)','#CD7F32'][i];
+          const podClass = ['podium-2','podium-1','podium-3'][i];
+          const isFirst = i===1;
+          const label = tab==='team' ? row.team : row.name;
+          return (
+            <div key={row.rank} style={{ flex:1, textAlign:'center', position:'relative' }}>
+              {isFirst && <div style={{ fontSize:22, marginBottom:-2, filter:'drop-shadow(0 0 6px rgba(255,215,0,.7))' }}>👑</div>}
+              <div style={{ filter:`drop-shadow(0 0 8px ${row.color})`, marginBottom:6 }}>
+                <div style={{ width:isFirst?52:42, height:isFirst?52:42, margin:'0 auto', clipPath:clip(5), background:row.color, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--fp)', fontSize:isFirst?17:13, lineHeight:1, color:'#0A0820' }}>{label[0]}</div>
+              </div>
+              <div style={{ fontSize:isFirst?12:11, fontWeight:800, color:row.you?'var(--cyan)':'var(--ink)', marginBottom:6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{label}{row.you?' (你)':''}</div>
+              <div className={podClass} style={{ height:podH, clipPath:clip(4), background:`linear-gradient(180deg,color-mix(in srgb,${medal} 35%,var(--panel)),var(--panel))`, border:`2px solid ${medal}`, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4 }}>
+                <div style={{ fontFamily:'var(--fp)', fontSize:isFirst?22:17, lineHeight:1, color:medal }}>{row.rank}</div>
+                <div style={{ fontFamily:'var(--fp)', fontSize:isFirst?11:9, lineHeight:1, color:'var(--gold)' }}>{row.soul}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {data.slice(3).map(row=>(
+          <PP key={row.rank} pad={11} color={row.you?'rgba(0,200,255,.08)':'var(--panel)'} border={row.you?'var(--cyan)':'var(--line)'}>
+            <div style={{ display:'flex', alignItems:'center', gap:11 }}>
+              <span style={{ fontFamily:'var(--fp)', fontSize:13, color:'var(--muted)', width:22, textAlign:'center', lineHeight:1 }}>{row.rank}</span>
+              <div style={{ width:30, height:30, clipPath:clip(4), background:row.color, flexShrink:0 }} />
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:row.you?'var(--cyan)':'var(--ink)' }}>{tab==='team'?row.team:row.name}{row.you?' (你)':''}</div>
+                {tab==='indiv' && <div style={{ fontSize:10, color:'var(--muted)' }}>{row.team}</div>}
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontFamily:'var(--fp)', fontSize:12, color:'var(--gold)', lineHeight:1 }}>{row.soul}</div>
+                {tab==='team' && <div style={{ fontSize:9, color:'var(--muted)', marginTop:2 }}>印記 ×{row.sigils}</div>}
+              </div>
+            </div>
+          </PP>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Me Screen ────────────────────────────────────────────────
+function MeScreen({ ownedSigils, defeatedBosses, soul }) {
+  const [prefs, setPrefs] = useState(loadPrefs);
+  useEffect(() => {
+    savePrefs(prefs);
+    document.body.classList.toggle('no-fx', !!prefs.noFx);
+  }, [prefs]);
+
+  const ach = ACHIEVEMENTS.map(a => {
+    if(a.id==='slayer') return { ...a, progress:defeatedBosses.length, unlocked:defeatedBosses.length>=3 };
+    if(a.id==='explorer') return { ...a, progress:ownedSigils.length, unlocked:ownedSigils.length>=6 };
+    if(a.id==='firstblood') return { ...a, unlocked:defeatedBosses.length>=1 };
+    return a;
+  });
+
+  return (
+    <div style={{ padding:'6px 16px 24px' }}>
+      <PP pad={16} color="linear-gradient(135deg,rgba(157,123,255,.25),rgba(10,8,28,.5))" border="var(--portal)" glow="rgba(106,90,205,.35)">
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <div style={{ width:56, height:56, clipPath:clip(6), background:PLAYER.teamColor, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--fp)', fontSize:22, color:'#0A0820', flexShrink:0, boxShadow:`0 0 16px ${PLAYER.teamColor}`, lineHeight:1 }}>{PLAYER.name[0]}</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontFamily:'var(--fd)', fontWeight:900, fontSize:19, color:'#fff' }}>{PLAYER.name}</div>
+            <div style={{ display:'flex', gap:8, marginTop:6 }}>
+              <Chip color="var(--portal)" solid>Lv.{PLAYER.level}</Chip>
+              <Chip color="var(--cyan)">{PLAYER.team}</Chip>
+            </div>
+          </div>
+        </div>
+        <div style={{ display:'flex', marginTop:16, gap:10 }}>
+          {[['魂力分',soul,'var(--gold)'],['隊伍排名','#'+PLAYER.rank,'var(--cyan)'],['印記',ownedSigils.length+'/6','var(--portal)']].map(([l,v,c])=>(
+            <div key={l} style={{ flex:1, textAlign:'center', padding:'10px 4px', clipPath:clip(4), background:'rgba(0,0,0,.25)' }}>
+              <div style={{ fontFamily:'var(--fp)', fontSize:14, color:c, lineHeight:1 }}>{v}</div>
+              <div style={{ fontSize:9.5, color:'var(--muted)', marginTop:5 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </PP>
+
+      <div style={{ fontFamily:'var(--fp)', fontSize:10, color:'var(--ink)', margin:'20px 0 10px', letterSpacing:1, lineHeight:1 }}>▸ 印記碎片收藏</div>
+      <PP pad={14} color="var(--panel)" border="var(--line)">
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+          {STATIONS.map(s=>{
+            const owned = ownedSigils.includes(s.bossId);
+            return (
+              <div key={s.code} style={{ textAlign:'center', opacity:owned?1:.4 }}>
+                <div style={{ padding:12, clipPath:clip(4), background:owned?`color-mix(in srgb,${s.elemColor} 12%,transparent)`:'rgba(255,255,255,.03)', border:owned?`1px solid color-mix(in srgb,${s.elemColor} 40%,transparent)`:'1px solid rgba(255,255,255,.06)' }}>
+                  {owned ? <Sigil color={s.elemColor} size={34} /> : <Icon name="lock" size={28} color="rgba(255,255,255,.3)" />}
+                </div>
+                <div style={{ fontSize:10, color:owned?'var(--ink)':'var(--muted)', marginTop:6 }}>{s.element}印記</div>
+              </div>
+            );
+          })}
+        </div>
+      </PP>
+
+      <div style={{ fontFamily:'var(--fp)', fontSize:10, color:'var(--ink)', margin:'20px 0 10px', letterSpacing:1, lineHeight:1 }}>▸ 成就徽章 <span style={{ color:'var(--muted)' }}>{ach.filter(a=>a.unlocked).length}/{ach.length}</span></div>
+      <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+        {ach.map(a=>(
+          <PP key={a.id} pad={12} color={a.unlocked?'var(--panel)':'rgba(255,255,255,.02)'} border={a.unlocked?'var(--gold)':'rgba(255,255,255,.07)'} style={{ opacity:a.unlocked?1:.7 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <div style={{ width:40, height:40, clipPath:clip(5), background:a.unlocked?'rgba(255,215,0,.15)':'rgba(255,255,255,.04)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, filter:a.unlocked?'drop-shadow(0 0 6px rgba(255,215,0,.4))':'none' }}>
+                <Icon name={a.icon} size={22} color={a.unlocked?'var(--gold)':'rgba(255,255,255,.3)'} />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:a.unlocked?'var(--ink)':'var(--muted)' }}>{a.name}</div>
+                <div style={{ fontSize:11, color:'var(--muted)', marginTop:3 }}>{a.desc}</div>
+                {!a.unlocked && a.progress!=null && (
+                  <div style={{ marginTop:7, height:6, background:'rgba(0,0,0,.3)', clipPath:clip(2) }}>
+                    <div style={{ height:'100%', width:`${(a.progress/a.total)*100}%`, background:'var(--gold)' }} />
+                  </div>
+                )}
+              </div>
+              {a.unlocked && <Icon name="check" size={20} color="var(--gold)" />}
+            </div>
+          </PP>
+        ))}
+      </div>
+
+      <div style={{ fontFamily:'var(--fp)', fontSize:10, color:'var(--ink)', margin:'20px 0 10px', letterSpacing:1, lineHeight:1 }}>▸ 顯示設定</div>
+      <PP pad={14} color="var(--panel)" border="var(--line)">
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {[{k:'noFx',label:'降低動效',desc:'關閉脈動 / 飄字等動畫'}].map(t=>{
+            const on = !!prefs[t.k];
+            return (
+              <div key={t.k} style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--ink)' }}>{t.label}</div>
+                  <div style={{ fontSize:11, color:'var(--muted)', marginTop:3 }}>{t.desc}</div>
+                </div>
+                <button onClick={()=>setPrefs(p=>({...p,[t.k]:!on}))} style={{ position:'relative', width:44, height:24, padding:0, border:'none', cursor:'pointer', clipPath:clip(3), background:on?'var(--cyan)':'rgba(255,255,255,.1)' }}>
+                  <div style={{ position:'absolute', top:3, left:on?22:3, width:18, height:18, clipPath:clip(2), background:on?'#04222E':'rgba(255,255,255,.7)', transition:'left .18s ease' }} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </PP>
+    </div>
+  );
+}
+
+// ── Bottom Nav ────────────────────────────────────────────────
+function BottomNav({ tab, setTab, onQR }) {
+  const items = [
+    { k:'map',   label:'地圖', icon:'map'    },
+    { k:'story', label:'劇情', icon:'scroll' },
+    { k:'qr',    label:'掃描', icon:'qr',  center:true },
+    { k:'rank',  label:'排行', icon:'trophy' },
+    { k:'me',    label:'我的', icon:'user'   },
+  ];
+  return (
+    <div style={{ position:'relative', display:'flex', alignItems:'flex-end', justifyContent:'space-around', padding:'8px 10px 26px', background:'linear-gradient(180deg,rgba(14,11,30,.4),var(--bg) 40%)', borderTop:'1px solid rgba(255,255,255,.06)', backdropFilter:'blur(8px)' }}>
+      {items.map(it => {
+        if(it.center) return (
+          <button key={it.k} onClick={onQR} style={{ position:'relative', top:-16, background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
+            <div style={{ width:56, height:56, clipPath:clip(7), background:'linear-gradient(135deg,var(--cyan),var(--portal))', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 18px rgba(0,200,255,.5)', border:'2px solid rgba(255,255,255,.2)' }}>
+              <Icon name="qr" size={26} color="#fff" />
+            </div>
+            <span style={{ fontFamily:'var(--fp)', fontSize:8, color:'var(--cyan)', lineHeight:1 }}>{it.label}</span>
+          </button>
+        );
+        const on = tab===it.k;
+        return (
+          <button key={it.k} onClick={()=>setTab(it.k)} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'4px 8px', flex:1 }}>
+            <Icon name={it.icon} size={22} color={on?'var(--cyan)':'rgba(255,255,255,.4)'} />
+            <span style={{ fontFamily:'var(--fp)', fontSize:8, color:on?'var(--cyan)':'rgba(255,255,255,.4)', lineHeight:1 }}>{it.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Top Bar ───────────────────────────────────────────────────
+function TopBar({ tab, soul }) {
+  const titles = { map:'異界鐵軌', story:'劇情', rank:'英雄榜', me:'勇者檔案' };
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'54px 16px 8px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+        <div style={{ width:26, height:26, flexShrink:0, clipPath:clip(3), background:PLAYER.teamColor, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--fp)', fontSize:11, lineHeight:1, color:'#0A0820' }}>{PLAYER.name[0]}</div>
+        <div style={{ fontFamily:'var(--fd)', fontWeight:800, fontSize:16, color:'#fff', whiteSpace:'nowrap', letterSpacing:.5 }}>{titles[tab]||'冒險'}</div>
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 8px', clipPath:clip(3), background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,215,0,.18)' }}>
+        <Icon name="star" size={11} color="var(--gold)" />
+        <span style={{ fontFamily:'var(--fp)', fontSize:10, lineHeight:1, color:'var(--gold)' }}>{soul}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+function Toast({ msg }) {
+  if(!msg) return null;
+  return (
+    <div className="toast-in" style={{ position:'absolute', top:60, left:'50%', transform:'translateX(-50%)', zIndex:100, padding:'10px 16px', clipPath:clip(5), background:'rgba(0,200,255,.15)', border:'1px solid var(--cyan)', backdropFilter:'blur(8px)', fontFamily:'var(--fp)', fontSize:10, color:'var(--cyan)', whiteSpace:'nowrap', lineHeight:1 }}>
+      {msg}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────
+function App() {
+  const [launched, setLaunched] = useState(false);
+  const [tab, setTab] = useState('map');
+  const [overlay, setOverlay] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const savedState = loadState();
+  const [stationStatus, setStationStatus] = useState(savedState?.stationStatus || DEFAULT_STATE.stationStatus);
+  const [defeatedBosses, setDefeatedBosses] = useState(savedState?.defeatedBosses || DEFAULT_STATE.defeatedBosses);
+  const [ownedSigils, setOwnedSigils] = useState(savedState?.ownedSigils || DEFAULT_STATE.ownedSigils);
+  const [soul, setSoul] = useState(savedState?.soul || DEFAULT_STATE.soul);
+
+  useEffect(() => {
+    saveState({ stationStatus, defeatedBosses, ownedSigils, soul });
+  }, [stationStatus, defeatedBosses, ownedSigils, soul]);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(null), 2600); };
+
+  const handleVictory = (bossId) => {
+    const st = STATIONS.find(s=>s.bossId===bossId);
+    if(!st) return;
+    setDefeatedBosses(prev => prev.includes(bossId) ? prev : [...prev, bossId]);
+    setOwnedSigils(prev => prev.includes(bossId) ? prev : [...prev, bossId]);
+    setSoul(prev => prev + (st.task.points||180));
+    setStationStatus(prev => {
+      const next = { ...prev, [st.code]:'cleared' };
+      const idx = STATIONS.findIndex(s=>s.code===st.code);
+      if(idx>=0 && idx<STATIONS.length-1) {
+        const nxt = STATIONS[idx+1];
+        if(next[nxt.code]==='locked') next[nxt.code]='active';
+      }
+      return next;
+    });
+    setOverlay(null);
+    setTab('me');
+    showToast(`✓ 獲得「${BOSSES[bossId].sigil}」！`);
+  };
+
+  if(!launched) return (
+    <div style={{ height:'100%', background:'var(--bg)', position:'relative', overflow:'auto' }} className="scroll">
+      <PortalScreen
+        onStart={()=>setLaunched(true)}
+        onStory={()=>{setLaunched(true);setTab('story');}}
+        onRank={()=>{setLaunched(true);setTab('rank');}}
+      />
+    </div>
+  );
+
+  return (
+    <div style={{ height:'100%', background:'var(--bg)', position:'relative', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      <TopBar tab={tab} soul={soul} />
+      <div className="scroll" style={{ flex:1, overflow:'auto' }}>
+        {tab==='map'   && <MapScreen stationStatus={stationStatus} defeatedBosses={defeatedBosses} ownedSigils={ownedSigils} onStation={code=>setOverlay({type:'task',code})} />}
+        {tab==='story' && <StoryScreen />}
+        {tab==='rank'  && <RankScreen />}
+        {tab==='me'    && <MeScreen ownedSigils={ownedSigils} defeatedBosses={defeatedBosses} soul={soul} />}
+      </div>
+      <BottomNav tab={tab} setTab={setTab} onQR={()=>setOverlay({type:'qr',code:null})} />
+      <Toast msg={toast} />
+      {overlay && (
+        <div className="overlay-enter" style={{ position:'absolute', inset:0, zIndex:40, background:'var(--bg)', overflow:'auto' }} className="scroll overlay-enter">
+          {overlay.type==='task' && <TaskScreen code={overlay.code} stationStatus={stationStatus} onClose={()=>setOverlay(null)} onQR={code=>setOverlay({type:'qr',code})} onBoss={(bid,code)=>setOverlay({type:'boss',bossId:bid,code})} />}
+          {overlay.type==='qr'   && <QRScreen code={overlay.code} onClose={()=>setOverlay(null)} onUnlocked={()=>setOverlay(null)} />}
+          {overlay.type==='boss' && <BossScreen bossId={overlay.bossId} code={overlay.code} defeatedBosses={defeatedBosses} onClose={()=>setOverlay(null)} onVictory={handleVictory} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── iOS Device Frame ──────────────────────────────────────────
+function IOSDevice() {
+  return (
+    <div className="ios-device">
+      <div className="ios-pill" />
+      <div className="ios-screen">
+        <App />
+      </div>
+    </div>
+  );
+}
+
+// ── Scale to fit viewport ─────────────────────────────────────
+function fit() {
+  const stage = document.getElementById('stage');
+  const pad = 40;
+  const s = Math.min(1.2, (window.innerHeight-pad)/880, (window.innerWidth-pad)/410);
+  stage.style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', fit);
+
+// Apply persisted prefs
+try {
+  const p = JSON.parse(localStorage.getItem('puren_prefs_v1') || '{}');
+  if(p.noFx) document.body.classList.add('no-fx');
+} catch {}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<IOSDevice />);
+fit();
+</script>
+</body>
+</html>
